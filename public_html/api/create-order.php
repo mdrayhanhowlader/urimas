@@ -16,16 +16,16 @@ $books_json_raw = $_POST['books_json'] ?? '[]';
 
 // Validate
 $errors = [];
-if (empty($name) || strlen($name) < 2)                      $errors[] = 'সঠিক নাম দিন';
+if (empty($name) || strlen($name) < 2)                      $errors[] = 'Please enter a valid name';
 $phone_digits = preg_replace('/[^0-9]/', '', $phone);
-if (strlen($phone_digits) < 6 || strlen($phone_digits) > 16) $errors[] = 'সঠিক মোবাইল নম্বর দিন';
-if (empty($address) || strlen($address) < 10)               $errors[] = 'সম্পূর্ণ ঠিকানা দিন';
-if (!in_array($area, ['dhaka', 'outside']))                 $errors[] = 'সঠিক এলাকা বেছে নিন';
-if (!in_array($payment_method, ['cod', 'bkash']))           $errors[] = 'সঠিক পেমেন্ট পদ্ধতি বেছে নিন';
-if ($payment_method === 'bkash' && strlen($transaction_id) < 5) $errors[] = 'সঠিক Transaction ID দিন';
+if (strlen($phone_digits) < 6 || strlen($phone_digits) > 16) $errors[] = 'Please enter a valid phone number';
+if (empty($address) || strlen($address) < 10)               $errors[] = 'Please enter a full address';
+if (!in_array($area, ['dhaka', 'outside']))                 $errors[] = 'Please select a valid delivery area';
+if (!in_array($payment_method, ['cod', 'bkash']))           $errors[] = 'Please select a valid payment method';
+if ($payment_method === 'bkash' && strlen($transaction_id) < 5) $errors[] = 'Please enter a valid Transaction ID';
 
 $books_raw_data = json_decode($books_json_raw, true);
-if (!is_array($books_raw_data) || count($books_raw_data) === 0) $errors[] = 'অন্তত একটি পণ্য বাছুন';
+if (!is_array($books_raw_data) || count($books_raw_data) === 0) $errors[] = 'Please select at least one item';
 
 if (!empty($errors)) {
     jsonResponse(['success' => false, 'message' => implode(' | ', $errors)], 400);

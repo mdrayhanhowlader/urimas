@@ -2,14 +2,13 @@
 let allBooks = [];
 let settings = {};
 let selectedIds = new Set();
-let selectedVariants = new Map(); // productId → chosen variant string
+let selectedVariants = new Map(); // productId → Set<variant>
 let paymentMethod = 'bkash';
 const bkashMode   = window.BKASH_MODE   || 'manual';
 const pixelId     = window.PIXEL_ID     || '';
 const countryCode = window.COUNTRY_CODE || '+880';
 
 function validatePhone(num) {
-  // Bangladesh: +880 or +88 → local number starts 01[3-9] 8 more digits
   if (countryCode === '+880' || countryCode === '+88') {
     return /^01[3-9]\d{8}$/.test(num);
   }
@@ -28,19 +27,18 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('orderForm').addEventListener('submit', handleSubmit);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePdf(); });
 
-  // Handle bKash API return
   const p = new URLSearchParams(location.search);
   const bkashResult = p.get('bkash');
   if (bkashResult === 'success') {
     fbqTrack('Purchase', { value: 0, currency: 'BDT', order_id: p.get('order') || '' });
     document.getElementById('successMsg').textContent =
-      `অর্ডার #${p.get('order')} পেমেন্ট সফল হয়েছে। TXN: ${p.get('trx')}`;
+      `Order #${p.get('order')} payment successful. TXN: ${p.get('trx')}`;
     document.getElementById('successModal').classList.add('show');
     history.replaceState(null, '', location.pathname);
   } else if (bkashResult === 'cancelled') {
-    showToast('bKash পেমেন্ট বাতিল হয়েছে');
+    showToast('bKash payment cancelled');
   } else if (bkashResult === 'failed') {
-    showToast('bKash পেমেন্ট ব্যর্থ হয়েছে, আবার চেষ্টা করুন');
+    showToast('bKash payment failed. Please try again');
   }
 });
 
@@ -64,24 +62,20 @@ async function loadData() {
     if (settingsData.success) {
       settings = settingsData.settings;
 
-      // bKash number element (inside manualBox)
       const numEl = document.getElementById('bkashNumber');
       if (numEl) numEl.textContent = settings.bkash_number || '—';
 
-      // Show correct bKash UI
       renderBkashBox();
 
-      // Delivery charge labels in area select
       const dChg = parseFloat(settings.dhaka_charge   || 80);
       const oChg = parseFloat(settings.outside_charge || 140);
       const optD = document.getElementById('optDhaka');
       const optO = document.getElementById('optOutside');
-      if (optD) optD.textContent = `ঢাকা — ডেলিভারি ৳${dChg.toLocaleString('bn-BD')}`;
-      if (optO) optO.textContent = `ঢাকার বাইরে — ডেলিভারি ৳${oChg.toLocaleString('bn-BD')}`;
+      if (optD) optD.textContent = `Dhaka — Delivery ৳${dChg}`;
+      if (optO) optO.textContent = `Outside Dhaka — Delivery ৳${oChg}`;
 
       const hint = document.getElementById('deliveryHint');
-      if (hint) hint.textContent =
-        `ঢাকা ৳${dChg.toLocaleString('bn-BD')} · ঢাকার বাইরে ৳${oChg.toLocaleString('bn-BD')}`;
+      if (hint) hint.textContent = `Dhaka ৳${dChg} · Outside Dhaka ৳${oChg}`;
     }
   } catch (e) {
     console.error('Load error:', e);
@@ -96,10 +90,12 @@ function renderProducts() {
     if (book.image) {
       imgSrc = book.image.startsWith('http') ? book.image : 'assets/images/books/' + book.image;
     }
-    const imgHtml = imgSrc
+
+    const imgContent = imgSrc
       ? `<img src="${escHtml(imgSrc)}" alt="${escHtml(book.name)}" loading="lazy"
-             onerror="this.parentNode.innerHTML='<div class=\\'card-img-placeholder\\'><i class=\\'fas fa-box-open\\'></i><span>পণ্য</span></div>'">`
-      : `<div class="card-img-placeholder"><i class="fas fa-box-open"></i><span>পণ্য</span></div>`;
+             onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+         <div class="card-img-placeholder" style="display:none"><i class="fas fa-box-open"></i><span>Product</span></div>`
+      : `<div class="card-img-placeholder"><i class="fas fa-box-open"></i><span>Product</span></div>`;
 
     const pdfSrc = book.sample_pdf ? 'assets/pdfs/' + book.sample_pdf : '';
     const pdfBtns = pdfSrc
@@ -126,19 +122,20 @@ function renderProducts() {
          </div>`
       : '';
 
-    const defaultHint = variants.length > 0 ? 'সাইজ / অপশন বেছে নিন' : 'বাছাই করুন';
+    const defaultHint = variants.length > 0 ? 'Choose size' : 'Select';
 
     return `
       <div class="product-card" id="card-${book.id}" onclick="toggleProduct(${book.id})">
-        <div class="card-overlay"></div>
-        <div class="card-check"><i class="fas fa-check"></i></div>
-        <div class="card-img-wrap">${imgHtml}</div>
+        <div class="card-img-wrap">
+          ${imgContent}
+          <div class="card-check-badge"><i class="fas fa-check"></i></div>
+        </div>
         <div class="card-body">
           ${brandLine}
           <div class="card-name">${escHtml(book.name)}</div>
           ${book.description ? `<div class="card-desc">${escHtml(book.description)}</div>` : ''}
           <div class="card-footer">
-            <div class="card-price">৳${Number(book.price).toLocaleString('bn-BD')}</div>
+            <div class="card-price">৳${Number(book.price).toLocaleString('en')}</div>
             ${pdfBtns}
           </div>
           ${variantHtml}
@@ -212,7 +209,7 @@ function toggleProduct(id) {
       selectedVariants.delete(id);
       updateSelectionUI();
     } else {
-      showToast('উপরের অপশন থেকে সাইজ বেছে নিন');
+      showToast('Please choose a size above');
     }
     return;
   }
@@ -264,9 +261,9 @@ function updateSelectionUI() {
     if (hint) {
       if (isSelected) {
         const varList = [...varSet].join(', ');
-        hint.textContent = varList ? `✓ ${varList} — বাছাই হয়েছে` : '✓ বাছাই হয়েছে';
+        hint.textContent = varList ? `✓ ${varList} — Added` : '✓ Added';
       } else {
-        hint.textContent = hasVariants ? 'সাইজ / অপশন বেছে নিন' : 'বাছাই করুন';
+        hint.textContent = hasVariants ? 'Choose size' : 'Select';
       }
     }
   });
@@ -278,12 +275,14 @@ function updateSelectionUI() {
   }, 0);
 
   const badge = document.getElementById('headerBadge');
-  badge.textContent = `${count} টি বাছাই`;
-  badge.classList.toggle('visible', count > 0);
+  if (badge) {
+    badge.textContent = `${count} selected`;
+    badge.classList.toggle('visible', count > 0);
+  }
 
   const bar = document.getElementById('orderBar');
-  document.getElementById('barCount').textContent = `${count} টি পণ্য বাছাই`;
-  document.getElementById('barTotal').textContent = `৳${total.toLocaleString('bn-BD')}`;
+  document.getElementById('barCount').textContent = `${count} item(s) selected`;
+  document.getElementById('barTotal').textContent = `৳${total.toLocaleString('en')}`;
   bar.classList.toggle('visible', count > 0);
 
   if (document.getElementById('orderSection').classList.contains('open')) {
@@ -303,7 +302,7 @@ function getSelectedTotal() {
 
 // ─── Order Form ───────────────────────────────────────────
 function openOrderForm() {
-  if (selectedIds.size === 0) { showToast('অন্তত একটি পণ্য বাছুন'); return; }
+  if (selectedIds.size === 0) { showToast('Select at least one item'); return; }
   document.getElementById('productsSection').style.display = 'none';
   document.getElementById('orderSection').classList.add('open');
   document.getElementById('orderBar').classList.remove('visible');
@@ -348,49 +347,47 @@ function updateOrderSummary() {
       ? `<span style="font-size:.65rem;font-weight:700;background:var(--accent);color:#fff;padding:1px 7px;border-radius:20px;margin-left:5px;flex-shrink:0">${escHtml(variant)}</span>`
       : '';
     const removeBtn = variant
-      ? `<button class="order-item-remove" data-bid="${b.id}" data-v="${escHtml(variant)}" onclick="removeProduct(+this.dataset.bid,this.dataset.v)" title="সরান">✕</button>`
-      : `<button class="order-item-remove" onclick="removeProduct(${b.id})" title="সরান">✕</button>`;
+      ? `<button class="order-item-remove" data-bid="${b.id}" data-v="${escHtml(variant)}" onclick="removeProduct(+this.dataset.bid,this.dataset.v)" title="Remove">✕</button>`
+      : `<button class="order-item-remove" onclick="removeProduct(${b.id})" title="Remove">✕</button>`;
     return `<div class="order-item" style="gap:10px">
       ${thumb}
       <span class="order-item-name" style="flex:1;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:2px">
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(b.name)}</span>${variantTag}
       </span>
       <span style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-        <span class="order-item-price">৳${parseFloat(b.price).toLocaleString('bn-BD')}</span>
+        <span class="order-item-price">৳${parseFloat(b.price).toLocaleString('en')}</span>
         ${removeBtn}
       </span>
     </div>`;
   }).join('');
 
-  document.getElementById('summaryBookPrice').textContent = `৳${bookTotal.toLocaleString('bn-BD')}`;
+  document.getElementById('summaryBookPrice').textContent = `৳${bookTotal.toLocaleString('en')}`;
   updateTotals();
 }
 
 function updateTotals() {
   const area      = document.getElementById('farea').value;
-  const bookTotal = allBooks.filter(b => selectedIds.has(b.id)).reduce((s, b) => s + parseFloat(b.price), 0);
+  const bookTotal = allBooks.filter(b => selectedIds.has(b.id)).reduce((s, b) => {
+    const vs = selectedVariants.get(b.id);
+    const qty = (vs && vs.size > 0) ? vs.size : 1;
+    return s + parseFloat(b.price) * qty;
+  }, 0);
 
   let delivery = 0;
   if (area === 'dhaka')   delivery = parseFloat(settings.dhaka_charge   || 80);
   if (area === 'outside') delivery = parseFloat(settings.outside_charge || 140);
   if (isNaN(delivery)) delivery = area === 'dhaka' ? 80 : 140;
 
-  // ── Summary row at top of form ──────────────────────────
   const deliveryRow = document.getElementById('summaryDelivery');
   if (deliveryRow) {
-    deliveryRow.textContent = area ? `৳${delivery.toLocaleString('bn-BD')}` : '৳—';
+    deliveryRow.textContent = area ? `৳${delivery.toLocaleString('en')}` : '৳—';
     deliveryRow.closest('.order-total-row')?.classList.toggle('delivery-set', !!area);
   }
   const totalEl = document.getElementById('summaryTotal');
-  if (totalEl) {
-    totalEl.textContent = area ? `৳${(bookTotal + delivery).toLocaleString('bn-BD')}` : '—';
-  }
+  if (totalEl) totalEl.textContent = area ? `৳${(bookTotal + delivery).toLocaleString('en')}` : '—';
 
-  // ── Delivery badge right below the area select ──────────
   const display = document.getElementById('deliveryCostDisplay');
-  if (display) {
-    display.textContent = area ? `৳${delivery.toLocaleString('bn-BD')}` : '৳—';
-  }
+  if (display) display.textContent = area ? `৳${delivery.toLocaleString('en')}` : '৳—';
 }
 
 // ─── Payment Toggle ───────────────────────────────────────
@@ -420,35 +417,31 @@ function setPayment(method) {
   }
 }
 
-// Called once after settings load — sets bKash UI based on mode
 function renderBkashBox() {
   const manualBox = document.getElementById('bkashManualBox');
   const apiBox    = document.getElementById('bkashApiBox');
   const txnField  = document.getElementById('txnField');
 
   if (bkashMode === 'api') {
-    // Switch to API mode
     if (manualBox) manualBox.style.display = 'none';
     if (apiBox)    apiBox.style.display    = 'block';
     if (txnField)  txnField.classList.remove('show');
   } else {
-    // Manual mode — inject QR block if available
     const qrBlock = document.getElementById('bkashQrBlock');
     if (qrBlock && settings.bkash_qr_url && !qrBlock.innerHTML.trim()) {
       qrBlock.innerHTML = `
         <div class="bkash-qr-wrap">
           <img src="${escHtml(settings.bkash_qr_url)}" alt="bKash QR" class="bkash-qr-img">
           <div class="bkash-qr-info">
-            <div class="bkash-label">bKash QR স্ক্যান করুন অথবা নম্বরে পাঠান</div>
+            <div class="bkash-label">Scan bKash QR or send to number</div>
             <div class="bkash-number" style="margin-top:4px">${escHtml(settings.bkash_number||'')}</div>
             <button type="button" class="copy-btn" onclick="copyBkash()"
                     style="margin-top:8px;display:inline-flex;align-items:center;gap:6px">
-              <i class="fas fa-copy"></i> কপি করুন
+              <i class="fas fa-copy"></i> Copy
             </button>
           </div>
         </div>`;
     }
-    // manualBox is visible by default; ensure it stays visible
     if (manualBox) manualBox.style.display = '';
     if (apiBox)    apiBox.style.display    = 'none';
     if (txnField)  txnField.classList.add('show');
@@ -459,23 +452,23 @@ function copyBkash() {
   const num = settings.bkash_number || '';
   if (!num) return;
   navigator.clipboard.writeText(num)
-    .then(() => showToast('bKash নম্বর কপি হয়েছে!'))
-    .catch(() => showToast('নম্বর: ' + num));
+    .then(() => showToast('bKash number copied!'))
+    .catch(() => showToast('Number: ' + num));
 }
 
 // ─── bKash API payment initiation ────────────────────────
 async function initiateBkashPayment() {
-  if (selectedIds.size === 0) { showToast('অন্তত একটি পণ্য বাছুন'); return; }
+  if (selectedIds.size === 0) { showToast('Select at least one item'); return; }
 
   const name    = document.getElementById('fname').value.trim();
   const phone   = document.getElementById('fphone').value.trim();
   const address = document.getElementById('faddress').value.trim();
   const area    = document.getElementById('farea').value;
 
-  if (!name || name.length < 2)        { showToast('সঠিক নাম দিন'); return; }
-  if (!validatePhone(phone))            { showToast('সঠিক মোবাইল নম্বর দিন'); return; }
-  if (!address || address.length < 10) { showToast('সম্পূর্ণ ঠিকানা দিন'); return; }
-  if (!area)                           { showToast('এলাকা বেছে নিন'); return; }
+  if (!name || name.length < 2)        { showToast('Please enter a valid name'); return; }
+  if (!validatePhone(phone))            { showToast('Please enter a valid phone number'); return; }
+  if (!address || address.length < 10) { showToast('Please enter a full address'); return; }
+  if (!area)                           { showToast('Please select a delivery area'); return; }
 
   showLoading(true);
 
@@ -486,7 +479,6 @@ async function initiateBkashPayment() {
     else booksArr.push({ id: b.id, variant: '' });
   });
 
-  // Step 1: create pending order
   const orderBody = new FormData();
   orderBody.append('name',           name);
   orderBody.append('phone',          countryCode + ' ' + phone);
@@ -502,7 +494,7 @@ async function initiateBkashPayment() {
 
     if (!orderData.success) {
       showLoading(false);
-      showToast(orderData.message || 'অর্ডার তৈরি করতে ব্যর্থ');
+      showToast(orderData.message || 'Failed to create order');
       return;
     }
 
@@ -511,7 +503,6 @@ async function initiateBkashPayment() {
       : parseFloat(settings.outside_charge || 140);
     const total = getSelectedTotal() + delivery;
 
-    // Step 2: create bKash payment
     const bkashBody = new FormData();
     bkashBody.append('amount',   total.toFixed(2));
     bkashBody.append('order_id', orderData.order_id);
@@ -524,11 +515,11 @@ async function initiateBkashPayment() {
     if (bkashData.success && bkashData.bkashURL) {
       window.location.href = bkashData.bkashURL;
     } else {
-      showToast(bkashData.message || 'bKash পেমেন্ট শুরু করতে ব্যর্থ');
+      showToast(bkashData.message || 'Failed to initiate bKash payment');
     }
   } catch (err) {
     showLoading(false);
-    showToast('নেটওয়ার্ক সমস্যা, আবার চেষ্টা করুন');
+    showToast('Network error. Please try again');
   }
 }
 
@@ -536,7 +527,6 @@ async function initiateBkashPayment() {
 async function handleSubmit(e) {
   e.preventDefault();
 
-  // API mode bKash: handled by the dedicated button, not the form
   if (bkashMode === 'api' && paymentMethod === 'bkash') return;
 
   const name    = document.getElementById('fname').value.trim();
@@ -545,21 +535,21 @@ async function handleSubmit(e) {
   const area    = document.getElementById('farea').value;
   const txn     = document.getElementById('ftxn').value.trim();
 
-  if (!name || name.length < 2)                     return showToast('সঠিক নাম দিন');
-  if (!validatePhone(phone))                         return showToast('সঠিক মোবাইল নম্বর দিন');
-  if (!address || address.length < 10)              return showToast('সম্পূর্ণ ঠিকানা দিন');
-  if (!area)                                        return showToast('এলাকা বেছে নিন');
-  if (paymentMethod === 'bkash' && txn.length < 5) return showToast('সঠিক Transaction ID দিন');
-  if (selectedIds.size === 0)                       return showToast('অন্তত একটি পণ্য বাছুন');
+  if (!name || name.length < 2)                     return showToast('Please enter a valid name');
+  if (!validatePhone(phone))                         return showToast('Please enter a valid phone number');
+  if (!address || address.length < 10)              return showToast('Please enter a full address');
+  if (!area)                                        return showToast('Please select a delivery area');
+  if (paymentMethod === 'bkash' && txn.length < 5) return showToast('Please enter a valid Transaction ID');
+  if (selectedIds.size === 0)                       return showToast('Select at least one item');
 
   showLoading(true);
   document.getElementById('submitBtn').disabled = true;
 
-  const booksArr2 = [];
+  const booksArr = [];
   allBooks.filter(b => selectedIds.has(b.id)).forEach(b => {
     const vs = selectedVariants.get(b.id);
-    if (vs && vs.size > 0) vs.forEach(v => booksArr2.push({ id: b.id, variant: v }));
-    else booksArr2.push({ id: b.id, variant: '' });
+    if (vs && vs.size > 0) vs.forEach(v => booksArr.push({ id: b.id, variant: v }));
+    else booksArr.push({ id: b.id, variant: '' });
   });
 
   const body = new FormData();
@@ -569,7 +559,7 @@ async function handleSubmit(e) {
   body.append('area',           area);
   body.append('payment_method', paymentMethod);
   body.append('transaction_id', txn);
-  body.append('books_json',     JSON.stringify(booksArr2));
+  body.append('books_json',     JSON.stringify(booksArr));
 
   try {
     const res  = await fetch('api/create-order.php', { method: 'POST', body });
@@ -578,8 +568,8 @@ async function handleSubmit(e) {
     document.getElementById('submitBtn').disabled = false;
 
     if (data.success) {
-      const area = document.getElementById('farea').value;
-      const delivery = area === 'dhaka' ? parseFloat(settings.dhaka_charge || 80) : parseFloat(settings.outside_charge || 140);
+      const areaVal  = document.getElementById('farea').value;
+      const delivery = areaVal === 'dhaka' ? parseFloat(settings.dhaka_charge || 80) : parseFloat(settings.outside_charge || 140);
       fbqTrack('Purchase', {
         content_ids: [...selectedIds].map(String),
         num_items:   selectedIds.size,
@@ -588,15 +578,15 @@ async function handleSubmit(e) {
         order_id:    String(data.order_id),
       });
       document.getElementById('successMsg').textContent =
-        `অর্ডার #${data.order_id} নিশ্চিত হয়েছে। আমরা শীঘ্রই যোগাযোগ করব।`;
+        `Order #${data.order_id} confirmed! We'll contact you shortly.`;
       document.getElementById('successModal').classList.add('show');
     } else {
-      showToast(data.message || 'অর্ডার দিতে সমস্যা হয়েছে');
+      showToast(data.message || 'Failed to place order');
     }
   } catch (err) {
     showLoading(false);
     document.getElementById('submitBtn').disabled = false;
-    showToast('নেটওয়ার্ক সমস্যা, আবার চেষ্টা করুন');
+    showToast('Network error. Please try again');
   }
 }
 

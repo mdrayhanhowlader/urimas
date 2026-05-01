@@ -14,20 +14,14 @@ $flash = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_id'], $_POST['status'])) {
     $order_id = (int)$_POST['order_id'];
     $status   = sanitize($_POST['status']);
-    if (in_array($status, ['pending','confirmed','delivered'])) {
+    if (in_array($status, ['pending','confirmed','delivered','cancelled'])) {
         $pdo->prepare("UPDATE orders SET status=? WHERE id=?")->execute([$status, $order_id]);
-        $flash = ['ok','অর্ডার স্ট্যাটাস আপডেট হয়েছে'];
+        $flash = ['ok', 'Order status updated'];
     }
 }
 
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $pdo->prepare("DELETE FROM orders WHERE id=?")->execute([(int)$_GET['delete']]);
-    header('Location: dashboard.php?deleted=1'); exit;
-}
-if (isset($_GET['deleted'])) $flash = ['ok','অর্ডার মুছে ফেলা হয়েছে'];
-
 $orders = $pdo->query("SELECT * FROM orders ORDER BY created_at DESC")->fetchAll();
-$stats  = $pdo->query("SELECT COUNT(*) total, SUM(status='pending') pending, SUM(status='confirmed') confirmed, SUM(status='delivered') delivered, SUM(total) revenue FROM orders")->fetch();
+$stats  = $pdo->query("SELECT COUNT(*) total, SUM(status='pending') pending, SUM(status='confirmed') confirmed, SUM(status='delivered') delivered, SUM(status='cancelled') cancelled, SUM(CASE WHEN status!='cancelled' THEN total ELSE 0 END) revenue FROM orders")->fetch();
 
 function parseBooks($row) {
     if (!empty($row['books_json'])) {
@@ -38,14 +32,14 @@ function parseBooks($row) {
 }
 
 function buildWaText($order, $books_label) {
-    $area = $order['area']==='dhaka' ? 'ঢাকা' : 'ঢাকার বাইরে';
+    $area = $order['area']==='dhaka' ? 'Dhaka' : 'Outside Dhaka';
     $pay  = $order['payment_method']==='bkash' ? 'bKash' : 'Cash on Delivery';
     $txn  = $order['transaction_id'] ? "\nTXN: {$order['transaction_id']}" : '';
-    return rawurlencode("অর্ডার #{$order['id']} নিশ্চিত হয়েছে 🎉\nপণ্য: {$books_label}\nমোট: ৳{$order['total']}\nপেমেন্ট: {$pay}{$txn}\nডেলিভারি: {$area}\nধন্যবাদ!");
+    return rawurlencode("Order #{$order['id']} confirmed! 🎉\nItems: {$books_label}\nTotal: ৳{$order['total']}\nPayment: {$pay}{$txn}\nDelivery: {$area}\nThank you!");
 }
 ?>
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -59,7 +53,7 @@ function buildWaText($order, $books_label) {
       --accent: #B5183D; --accent-light: #FCE8EE; --accent-dark: #8B1A2B;
       --bg: #FFF5F7; --card: #fff;
       --text: #2C1810; --muted: #9B7B82; --border: #F0D0D8;
-      --yellow: #d97706; --red: #dc2626; --blue: #1e40af;
+      --yellow: #d97706; --red: #dc2626; --blue: #1e40af; --green: #065f46;
       --radius: 14px; --radius-sm: 8px;
     }
     body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -77,10 +71,7 @@ function buildWaText($order, $books_label) {
     .btn-danger { background: #fee2e2; color: var(--red); }
     .btn-danger:hover { background: #fecaca; }
     .btn-accent { background: var(--accent); color: #fff; }
-    @media (max-width: 520px) {
-      .nav-links .btn span { display: none; }
-      .nav-links .btn { padding: 8px 10px; }
-    }
+    @media (max-width: 520px) { .nav-links .btn span { display: none; } .nav-links .btn { padding: 8px 10px; } }
 
     /* ─── PAGE ─── */
     .page { max-width: 1200px; margin: 0 auto; padding: 20px 14px 60px; }
@@ -92,8 +83,9 @@ function buildWaText($order, $books_label) {
     .flash.err { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 
     /* ─── STATS ─── */
-    .stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 24px; }
-    @media (max-width: 640px) { .stats { grid-template-columns: repeat(2,1fr); gap: 10px; } }
+    .stats { display: grid; grid-template-columns: repeat(5,1fr); gap: 12px; margin-bottom: 24px; }
+    @media (max-width: 800px) { .stats { grid-template-columns: repeat(3,1fr); gap: 10px; } }
+    @media (max-width: 480px) { .stats { grid-template-columns: repeat(2,1fr); gap: 10px; } }
     .stat-card { background: var(--card); border-radius: var(--radius); padding: 16px 18px;
                  box-shadow: 0 1px 4px rgba(181,24,61,.07); border: 1px solid var(--border); }
     .stat-icon { font-size: 1.3rem; margin-bottom: 8px; }
@@ -115,11 +107,14 @@ function buildWaText($order, $books_label) {
          color: var(--accent); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
     td { padding: 11px 14px; border-top: 1px solid var(--border); vertical-align: top; }
     tr:hover td { background: #fffafc; }
+    tr.row-cancelled td { opacity: .45; }
+    tr.row-cancelled:hover td { opacity: .6; }
 
     .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: .7rem; font-weight: 700; white-space: nowrap; }
     .badge-pending   { background: #fef3c7; color: #92400e; }
     .badge-confirmed { background: #dbeafe; color: var(--blue); }
     .badge-delivered { background: #d1fae5; color: #065f46; }
+    .badge-cancelled { background: #f1f5f9; color: #64748b; }
 
     .pay-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: .68rem; font-weight: 600; }
     .pay-bkash { background: #fff0f0; color: #dc2626; }
@@ -134,8 +129,6 @@ function buildWaText($order, $books_label) {
     .btn-sm { padding: 5px 10px; font-size: .72rem; border-radius: 6px; }
     .btn-wa  { background: #e8f5e9; color: #2e7d32; }
     .btn-wa:hover { background: #c8e6c9; }
-    .btn-del { background: #fee2e2; color: var(--red); }
-    .btn-del:hover { background: #fecaca; }
     .btn-info { background: var(--accent-light); color: var(--accent); }
     .btn-info:hover { background: #F8C8D4; }
 
@@ -146,23 +139,21 @@ function buildWaText($order, $books_label) {
     .cust-phone { font-size: .76rem; color: var(--muted); }
     .cust-addr  { font-size: .72rem; color: var(--muted); margin-top: 2px; max-width: 150px; }
 
-    /* desktop only */
     @media (max-width: 767px) { .desktop-only { display: none !important; } }
     @media (min-width: 768px) { .mobile-only  { display: none !important; } }
 
     /* ─── MOBILE ORDER CARDS ─── */
     .order-cards { display: flex; flex-direction: column; gap: 12px; }
-
     .order-card {
       background: var(--card); border-radius: var(--radius);
       border: 1.5px solid var(--border);
       box-shadow: 0 1px 4px rgba(181,24,61,.06);
       overflow: hidden;
     }
+    .order-card.card-cancelled { opacity: .5; }
     .oc-head {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 14px; background: var(--accent-light);
-      gap: 8px;
+      padding: 12px 14px; background: var(--accent-light); gap: 8px;
     }
     .oc-id   { font-weight: 800; color: var(--accent); font-size: .9rem; }
     .oc-date { font-size: .7rem; color: var(--muted); }
@@ -198,7 +189,7 @@ function buildWaText($order, $books_label) {
       .modal-box { border-radius: var(--radius); transform: scale(.95) translateY(16px); max-height: 90vh; }
       .modal-overlay.show .modal-box { transform: scale(1) translateY(0); }
     }
-    .modal-head { background: linear-gradient(135deg, var(--accent-grad) 0%, var(--accent) 100%);
+    .modal-head { background: linear-gradient(135deg, #e73661 0%, var(--accent) 100%);
                   color: #fff; padding: 18px 20px;
                   display: flex; align-items: center; justify-content: space-between;
                   position: sticky; top: 0; z-index: 2; }
@@ -226,11 +217,11 @@ function buildWaText($order, $books_label) {
 
 <nav class="nav">
   <div class="nav-inner">
-    <a href="../index.php" class="nav-brand"><?= $shop_name ?> Dashboard</a>
+    <a href="../index.php" class="nav-brand"><?= $shop_name ?> — Dashboard</a>
     <div class="nav-links">
-      <a href="settings.php" class="btn btn-ghost"><i class="fas fa-cog"></i><span> সেটিংস</span></a>
-      <a href="../index.php" class="btn btn-ghost" target="_blank"><i class="fas fa-store"></i><span> শপ</span></a>
-      <a href="logout.php"   class="btn btn-danger"><i class="fas fa-sign-out-alt"></i><span> লগআউট</span></a>
+      <a href="settings.php" class="btn btn-ghost"><i class="fas fa-cog"></i><span> Settings</span></a>
+      <a href="../index.php" class="btn btn-ghost" target="_blank"><i class="fas fa-store"></i><span> Shop</span></a>
+      <a href="logout.php"   class="btn btn-danger"><i class="fas fa-sign-out-alt"></i><span> Logout</span></a>
     </div>
   </div>
 </nav>
@@ -246,29 +237,34 @@ function buildWaText($order, $books_label) {
     <div class="stat-card">
       <div class="stat-icon">🛒</div>
       <div class="stat-val"><?= (int)$stats['total'] ?></div>
-      <div class="stat-lbl">মোট অর্ডার</div>
+      <div class="stat-lbl">Total Orders</div>
     </div>
     <div class="stat-card">
       <div class="stat-icon">⏳</div>
       <div class="stat-val" style="color:var(--yellow)"><?= (int)$stats['pending'] ?></div>
-      <div class="stat-lbl">পেন্ডিং</div>
+      <div class="stat-lbl">Pending</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-val" style="color:var(--blue)"><?= (int)$stats['confirmed'] ?></div>
+      <div class="stat-lbl">Confirmed</div>
     </div>
     <div class="stat-card">
       <div class="stat-icon">📦</div>
-      <div class="stat-val" style="color:#065f46"><?= (int)$stats['delivered'] ?></div>
-      <div class="stat-lbl">ডেলিভারি হয়েছে</div>
+      <div class="stat-val" style="color:var(--green)"><?= (int)$stats['delivered'] ?></div>
+      <div class="stat-lbl">Delivered</div>
     </div>
     <div class="stat-card">
       <div class="stat-icon">💰</div>
       <div class="stat-val" style="color:var(--accent)">৳<?= number_format((float)$stats['revenue'],0) ?></div>
-      <div class="stat-lbl">মোট রাজস্ব</div>
+      <div class="stat-lbl">Revenue</div>
     </div>
   </div>
 
   <!-- Section head -->
   <div class="section-head">
-    <span class="section-title">সব অর্ডার</span>
-    <span class="order-count"><?= count($orders) ?> টি অর্ডার</span>
+    <span class="section-title">All Orders</span>
+    <span class="order-count"><?= count($orders) ?> orders</span>
   </div>
 
   <!-- ══ DESKTOP TABLE ══ -->
@@ -277,38 +273,38 @@ function buildWaText($order, $books_label) {
       <table>
         <thead>
           <tr>
-            <th>#</th><th>কাস্টমার</th><th>পণ্য</th><th>পেমেন্ট</th>
-            <th>মোট</th><th>স্ট্যাটাস</th><th>তারিখ</th><th>অ্যাকশন</th>
+            <th>#</th><th>Customer</th><th>Items</th><th>Payment</th>
+            <th>Total</th><th>Status</th><th>Date</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <?php if (empty($orders)): ?>
-            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">কোনো অর্ডার নেই</td></tr>
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">No orders yet</td></tr>
           <?php endif; ?>
           <?php foreach ($orders as $order):
             $books       = parseBooks($order);
             $books_label = $books ? implode(', ', array_column($books,'name')) : 'N/A';
             $wa_text     = buildWaText($order, $books_label);
-            $customer_wa = '880' . ltrim($order['phone'],'0');
+            $customer_wa = '880' . ltrim(preg_replace('/[^0-9]/', '', $order['phone']),'8800');
+            $is_cancelled = $order['status'] === 'cancelled';
           ?>
-          <tr>
+          <tr class="<?= $is_cancelled ? 'row-cancelled' : '' ?>">
             <td>
               <span style="font-weight:800;color:var(--accent)">#<?= $order['id'] ?></span><br>
               <button class="btn btn-info btn-sm" style="margin-top:4px" onclick='openDetail(<?= htmlspecialchars(json_encode([
                 'id'=>$order['id'],'name'=>$order['name'],'phone'=>$order['phone'],
-                'email'=>$order['email']??'',
                 'address'=>$order['address'],'area'=>$order['area'],
                 'payment_method'=>$order['payment_method']??'bkash',
                 'transaction_id'=>$order['transaction_id']??'',
                 'total'=>$order['total'],'status'=>$order['status'],
                 'created_at'=>$order['created_at'],'books'=>$books,
-              ], JSON_UNESCAPED_UNICODE)) ?>)'>বিস্তারিত</button>
+              ], JSON_UNESCAPED_UNICODE)) ?>)'>Detail</button>
             </td>
             <td>
               <div class="cust-name"><?= htmlspecialchars($order['name']) ?></div>
               <div class="cust-phone"><?= htmlspecialchars($order['phone']) ?></div>
               <div class="cust-addr"><?= htmlspecialchars(mb_strimwidth($order['address'],0,55,'…')) ?></div>
-              <div style="font-size:.7rem;color:var(--muted);margin-top:2px"><?= $order['area']==='dhaka'?'📍 ঢাকা':'📍 ঢাকার বাইরে' ?></div>
+              <div style="font-size:.7rem;color:var(--muted);margin-top:2px"><?= $order['area']==='dhaka'?'📍 Dhaka':'📍 Outside Dhaka' ?></div>
             </td>
             <td>
               <?php if ($books): ?>
@@ -347,12 +343,15 @@ function buildWaText($order, $books_label) {
               <form method="POST">
                 <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
                 <select name="status" class="status-sel" onchange="this.form.submit()">
-                  <option value="pending"   <?= $order['status']==='pending'  ?'selected':'' ?>>⏳ পেন্ডিং</option>
-                  <option value="confirmed" <?= $order['status']==='confirmed'?'selected':'' ?>>✅ নিশ্চিত</option>
-                  <option value="delivered" <?= $order['status']==='delivered'?'selected':'' ?>>📦 ডেলিভারি</option>
+                  <option value="pending"   <?= $order['status']==='pending'   ?'selected':'' ?>>⏳ Pending</option>
+                  <option value="confirmed" <?= $order['status']==='confirmed' ?'selected':'' ?>>✅ Confirmed</option>
+                  <option value="delivered" <?= $order['status']==='delivered' ?'selected':'' ?>>📦 Delivered</option>
+                  <option value="cancelled" <?= $order['status']==='cancelled' ?'selected':'' ?>>✖ Cancelled</option>
                 </select>
               </form>
-              <div style="margin-top:4px"><span class="badge badge-<?= $order['status'] ?>"><?= match($order['status']){'pending'=>'পেন্ডিং','confirmed'=>'নিশ্চিত','delivered'=>'ডেলিভারি',default=>$order['status']} ?></span></div>
+              <div style="margin-top:4px">
+                <span class="badge badge-<?= $order['status'] ?>"><?= match($order['status']){'pending'=>'Pending','confirmed'=>'Confirmed','delivered'=>'Delivered','cancelled'=>'Cancelled',default=>$order['status']} ?></span>
+              </div>
             </td>
             <td style="white-space:nowrap;font-size:.76rem;color:var(--muted)">
               <?= date('d M Y', strtotime($order['created_at'])) ?><br>
@@ -362,20 +361,16 @@ function buildWaText($order, $books_label) {
               <div class="act-btns">
                 <button class="btn btn-sm" style="background:#fff3e0;color:#b45309;border:1px solid #fde68a" onclick='printInvoice(<?= htmlspecialchars(json_encode([
                   'id'=>$order['id'],'name'=>$order['name'],'phone'=>$order['phone'],
-                  'email'=>$order['email']??'',
                   'address'=>$order['address'],'area'=>$order['area'],
                   'payment_method'=>$order['payment_method']??'bkash',
                   'transaction_id'=>$order['transaction_id']??'',
                   'total'=>$order['total'],'status'=>$order['status'],
                   'created_at'=>$order['created_at'],'books'=>$books,
                 ], JSON_UNESCAPED_UNICODE)) ?>)'>
-                  <i class="fas fa-print"></i> ইনভয়েস
+                  <i class="fas fa-print"></i> Invoice
                 </button>
                 <a href="https://wa.me/<?= $customer_wa ?>?text=<?= $wa_text ?>" target="_blank" class="btn btn-sm btn-wa">
-                  <i class="fab fa-whatsapp"></i> WhatsApp
-                </a>
-                <a href="?delete=<?= $order['id'] ?>" onclick="return confirm('অর্ডার #<?= $order['id'] ?> মুছবেন?')" class="btn btn-sm btn-del">
-                  <i class="fas fa-trash"></i>
+                  <i class="fab fa-whatsapp"></i> WA
                 </a>
               </div>
             </td>
@@ -389,38 +384,39 @@ function buildWaText($order, $books_label) {
   <!-- ══ MOBILE CARDS ══ -->
   <div class="order-cards mobile-only">
     <?php if (empty($orders)): ?>
-      <div style="text-align:center;padding:40px;color:var(--muted)">কোনো অর্ডার নেই</div>
+      <div style="text-align:center;padding:40px;color:var(--muted)">No orders yet</div>
     <?php endif; ?>
     <?php foreach ($orders as $order):
       $books       = parseBooks($order);
       $books_label = $books ? implode(', ', array_column($books,'name')) : 'N/A';
       $wa_text     = buildWaText($order, $books_label);
-      $customer_wa = '880' . ltrim($order['phone'],'0');
+      $customer_wa = '880' . ltrim(preg_replace('/[^0-9]/', '', $order['phone']),'8800');
+      $is_cancelled = $order['status'] === 'cancelled';
     ?>
-    <div class="order-card">
+    <div class="order-card<?= $is_cancelled ? ' card-cancelled' : '' ?>">
       <div class="oc-head">
         <div>
           <span class="oc-id">#<?= $order['id'] ?></span>
-          <span class="badge badge-<?= $order['status'] ?>" style="margin-left:8px"><?= match($order['status']){'pending'=>'পেন্ডিং','confirmed'=>'নিশ্চিত','delivered'=>'ডেলিভারি',default=>$order['status']} ?></span>
+          <span class="badge badge-<?= $order['status'] ?>" style="margin-left:8px"><?= match($order['status']){'pending'=>'Pending','confirmed'=>'Confirmed','delivered'=>'Delivered','cancelled'=>'Cancelled',default=>$order['status']} ?></span>
         </div>
         <span class="oc-date"><?= date('d M, h:i A', strtotime($order['created_at'])) ?></span>
       </div>
       <div class="oc-body">
         <div class="oc-row">
-          <span class="oc-lbl">নাম</span>
+          <span class="oc-lbl">Name</span>
           <span class="oc-val" style="font-weight:700"><?= htmlspecialchars($order['name']) ?></span>
         </div>
         <div class="oc-row">
-          <span class="oc-lbl">মোবাইল</span>
+          <span class="oc-lbl">Phone</span>
           <span class="oc-val"><?= htmlspecialchars($order['phone']) ?></span>
         </div>
         <div class="oc-row">
-          <span class="oc-lbl">ঠিকানা</span>
+          <span class="oc-lbl">Address</span>
           <span class="oc-val" style="font-size:.78rem;color:var(--muted)"><?= htmlspecialchars($order['address']) ?></span>
         </div>
         <?php if ($books): ?>
         <div class="oc-row">
-          <span class="oc-lbl">পণ্য</span>
+          <span class="oc-lbl">Items</span>
           <div class="oc-books">
             <?php foreach ($books as $b):
               $imgFile = $b['image'] ?? '';
@@ -444,7 +440,7 @@ function buildWaText($order, $books_label) {
         </div>
         <?php endif; ?>
         <div class="oc-row">
-          <span class="oc-lbl">পেমেন্ট</span>
+          <span class="oc-lbl">Payment</span>
           <span class="oc-val">
             <?php if ($order['payment_method']==='bkash'): ?>
               <span class="pay-badge pay-bkash">bKash</span>
@@ -460,9 +456,10 @@ function buildWaText($order, $books_label) {
           <form method="POST">
             <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
             <select name="status" class="status-sel" onchange="this.form.submit()" style="width:100%">
-              <option value="pending"   <?= $order['status']==='pending'  ?'selected':'' ?>>⏳ পেন্ডিং</option>
-              <option value="confirmed" <?= $order['status']==='confirmed'?'selected':'' ?>>✅ নিশ্চিত</option>
-              <option value="delivered" <?= $order['status']==='delivered'?'selected':'' ?>>📦 ডেলিভারি</option>
+              <option value="pending"   <?= $order['status']==='pending'   ?'selected':'' ?>>⏳ Pending</option>
+              <option value="confirmed" <?= $order['status']==='confirmed' ?'selected':'' ?>>✅ Confirmed</option>
+              <option value="delivered" <?= $order['status']==='delivered' ?'selected':'' ?>>📦 Delivered</option>
+              <option value="cancelled" <?= $order['status']==='cancelled' ?'selected':'' ?>>✖ Cancelled</option>
             </select>
           </form>
         </div>
@@ -471,20 +468,16 @@ function buildWaText($order, $books_label) {
       <div style="padding:0 14px 12px;display:flex;gap:6px">
         <button class="btn btn-info btn-sm" style="flex:1;justify-content:center" onclick='openDetail(<?= htmlspecialchars(json_encode([
           'id'=>$order['id'],'name'=>$order['name'],'phone'=>$order['phone'],
-          'email'=>$order['email']??'',
           'address'=>$order['address'],'area'=>$order['area'],
           'payment_method'=>$order['payment_method']??'bkash',
           'transaction_id'=>$order['transaction_id']??'',
           'total'=>$order['total'],'status'=>$order['status'],
           'created_at'=>$order['created_at'],'books'=>$books,
         ], JSON_UNESCAPED_UNICODE)) ?>)'>
-          <i class="fas fa-eye"></i> বিস্তারিত
+          <i class="fas fa-eye"></i> Detail
         </button>
         <a href="https://wa.me/<?= $customer_wa ?>?text=<?= $wa_text ?>" target="_blank" class="btn btn-sm btn-wa" style="flex:1;justify-content:center">
           <i class="fab fa-whatsapp"></i> WhatsApp
-        </a>
-        <a href="?delete=<?= $order['id'] ?>" onclick="return confirm('অর্ডার #<?= $order['id'] ?> মুছবেন?')" class="btn btn-sm btn-del">
-          <i class="fas fa-trash"></i>
         </a>
       </div>
     </div>
@@ -497,7 +490,7 @@ function buildWaText($order, $books_label) {
 <div class="modal-overlay" id="orderModal" onclick="if(event.target===this)closeDetail()">
   <div class="modal-box">
     <div class="modal-head">
-      <h3 id="modalTitle">অর্ডার বিস্তারিত</h3>
+      <h3 id="modalTitle">Order Detail</h3>
       <button class="modal-close-btn" onclick="closeDetail()">✕</button>
     </div>
     <div class="modal-body" id="modalBody"></div>
@@ -511,9 +504,10 @@ let currentOrder = null;
 
 function openDetail(order) {
   currentOrder = order;
-  const area  = order.area === 'dhaka' ? 'ঢাকা' : 'ঢাকার বাইরে';
+  const area  = order.area === 'dhaka' ? 'Dhaka' : 'Outside Dhaka';
   const pay   = order.payment_method === 'bkash' ? 'bKash' : 'Cash on Delivery';
-  const stat  = {'pending':'⏳ পেন্ডিং','confirmed':'✅ নিশ্চিত','delivered':'📦 ডেলিভারি'}[order.status] || order.status;
+  const statMap = {pending:'⏳ Pending', confirmed:'✅ Confirmed', delivered:'📦 Delivered', cancelled:'✖ Cancelled'};
+  const stat  = statMap[order.status] || order.status;
 
   let booksHtml = '', bookTotal = 0;
   if (order.books && order.books.length) {
@@ -527,7 +521,7 @@ function openDetail(order) {
       booksHtml += `<div class="modal-book-item" style="align-items:center;gap:10px;justify-content:flex-start">
         ${imgHtml}
         <span style="flex:1">${b.name}${variantBadge}</span>
-        <span style="font-weight:700;color:var(--accent);flex-shrink:0">৳${Number(b.price).toLocaleString('bn-BD')}</span>
+        <span style="font-weight:700;color:var(--accent);flex-shrink:0">৳${Number(b.price).toLocaleString('en')}</span>
       </div>`;
       bookTotal += parseFloat(b.price);
     });
@@ -535,34 +529,30 @@ function openDetail(order) {
   }
   const delivery = parseFloat(order.total) - bookTotal;
   const totalsHtml = `<div class="modal-totals">
-    <div class="modal-total-row"><span>পণ্যের মূল্য</span><span>৳${bookTotal.toLocaleString('bn-BD')}</span></div>
-    <div class="modal-total-row"><span>ডেলিভারি (${area})</span><span>৳${delivery.toLocaleString('bn-BD')}</span></div>
-    <div class="modal-total-row grand"><span>মোট</span><span>৳${parseFloat(order.total).toLocaleString('bn-BD')}</span></div>
+    <div class="modal-total-row"><span>Subtotal</span><span>৳${bookTotal.toLocaleString('en')}</span></div>
+    <div class="modal-total-row"><span>Delivery (${area})</span><span>৳${delivery.toLocaleString('en')}</span></div>
+    <div class="modal-total-row grand"><span>Total</span><span>৳${parseFloat(order.total).toLocaleString('en')}</span></div>
   </div>`;
 
-  document.getElementById('modalTitle').textContent = `অর্ডার #${order.id}`;
+  document.getElementById('modalTitle').textContent = `Order #${order.id}`;
   document.getElementById('modalBody').innerHTML = `
-    <div class="detail-row"><span class="detail-label">নাম</span><span class="detail-val">${order.name}</span></div>
-    <div class="detail-row"><span class="detail-label">মোবাইল</span><span class="detail-val">${order.phone}</span></div>
-    ${order.email ? `<div class="detail-row"><span class="detail-label">ইমেইল</span><span class="detail-val">${order.email}</span></div>` : ''}
-    <div class="detail-row"><span class="detail-label">ঠিকানা</span><span class="detail-val">${order.address}</span></div>
-    <div class="detail-row"><span class="detail-label">এলাকা</span><span class="detail-val">${area}</span></div>
-    <div class="detail-row"><span class="detail-label">পেমেন্ট</span><span class="detail-val">${pay}${order.transaction_id?'<br><small style="color:var(--muted)">TXN: '+order.transaction_id+'</small>':''}</span></div>
-    <div class="detail-row"><span class="detail-label">স্ট্যাটাস</span><span class="detail-val">${stat}</span></div>
-    <div style="margin-top:12px;font-size:.74rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">পণ্য</div>
+    <div class="detail-row"><span class="detail-label">Name</span><span class="detail-val">${order.name}</span></div>
+    <div class="detail-row"><span class="detail-label">Phone</span><span class="detail-val">${order.phone}</span></div>
+    <div class="detail-row"><span class="detail-label">Address</span><span class="detail-val">${order.address}</span></div>
+    <div class="detail-row"><span class="detail-label">Area</span><span class="detail-val">${area}</span></div>
+    <div class="detail-row"><span class="detail-label">Payment</span><span class="detail-val">${pay}${order.transaction_id?'<br><small style="color:var(--muted)">TXN: '+order.transaction_id+'</small>':''}</span></div>
+    <div class="detail-row"><span class="detail-label">Status</span><span class="detail-val">${stat}</span></div>
+    <div style="margin-top:12px;font-size:.74rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Items</div>
     ${booksHtml}${totalsHtml}`;
 
-  const waNum = '880' + order.phone.replace(/^0/,'');
-  const waMsg = encodeURIComponent(`অর্ডার #${order.id} নিশ্চিত হয়েছে 🎉\nপণ্য: ${order.books.map(b=>b.name).join(', ')}\nমোট: ৳${order.total}\nপেমেন্ট: ${pay}\nধন্যবাদ!`);
+  const waNum = '880' + order.phone.replace(/\D/g,'').replace(/^880/,'').replace(/^0/,'');
+  const waMsg = encodeURIComponent(`Order #${order.id} confirmed! 🎉\nItems: ${order.books.map(b=>b.name).join(', ')}\nTotal: ৳${order.total}\nPayment: ${pay}\nThank you!`);
   document.getElementById('modalActions').innerHTML = `
     <button onclick="printInvoice(currentOrder)" class="btn" style="background:#fff3e0;color:#b45309;border:1px solid #fde68a">
-      <i class="fas fa-print"></i> ইনভয়েস
+      <i class="fas fa-print"></i> Invoice
     </button>
     <a href="https://wa.me/${waNum}?text=${waMsg}" target="_blank" class="btn btn-wa">
-      <i class="fab fa-whatsapp"></i> WhatsApp পাঠান
-    </a>
-    <a href="?delete=${order.id}" onclick="return confirm('অর্ডার #${order.id} মুছবেন?')" class="btn btn-del">
-      <i class="fas fa-trash"></i> মুছুন
+      <i class="fab fa-whatsapp"></i> WhatsApp
     </a>`;
 
   document.getElementById('orderModal').classList.add('show');
@@ -575,11 +565,11 @@ function closeDetail() {
 }
 
 function printInvoice(order) {
-  const area     = order.area === 'dhaka' ? 'ঢাকা (ভেতরে)' : 'ঢাকার বাইরে';
-  const pay      = order.payment_method === 'bkash' ? 'bKash' : 'Cash on Delivery';
-  const statMap  = {pending:'পেন্ডিং', confirmed:'নিশ্চিত', delivered:'ডেলিভারি হয়েছে'};
-  const stat     = statMap[order.status] || order.status;
-  const dateStr  = new Date(order.created_at).toLocaleString('bn-BD', {dateStyle:'long', timeStyle:'short'});
+  const area    = order.area === 'dhaka' ? 'Dhaka' : 'Outside Dhaka';
+  const pay     = order.payment_method === 'bkash' ? 'bKash' : 'Cash on Delivery';
+  const statMap = {pending:'Pending', confirmed:'Confirmed', delivered:'Delivered', cancelled:'Cancelled'};
+  const stat    = statMap[order.status] || order.status;
+  const dateStr = new Date(order.created_at).toLocaleString('en', {dateStyle:'long', timeStyle:'short'});
 
   let bookRows = '', bookTotal = 0;
   if (order.books && order.books.length) {
@@ -592,15 +582,14 @@ function printInvoice(order) {
       const variantStr = b.variant ? ` <span style="font-size:.65rem;font-weight:700;background:#B5183D;color:#fff;padding:1px 6px;border-radius:20px;margin-left:3px">${b.variant}</span>` : '';
       bookRows += `<tr>
         <td style="padding:8px 10px;border-bottom:1px solid #eee">${imgTag}${i+1}. ${b.name}${variantStr}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:700">৳${p.toLocaleString('bn-BD')}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:700">৳${p.toLocaleString('en')}</td>
       </tr>`;
     });
   }
-  const delivery  = parseFloat(order.total) - bookTotal;
-  const emailRow  = order.email ? `<tr><td style="padding:5px 0;color:#666;font-size:13px">ইমেইল</td><td style="padding:5px 0;font-weight:600">${order.email}</td></tr>` : '';
+  const delivery = parseFloat(order.total) - bookTotal;
 
   const html = `<!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Invoice #${order.id} — ${SHOP_NAME}</title>
@@ -616,7 +605,7 @@ function printInvoice(order) {
   .section    { margin-bottom: 20px; }
   .section-title { font-size: 11px; font-weight: 700; color: #B5183D; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
   .info-table { width: 100%; border-collapse: collapse; }
-  .info-table td { vertical-align: top; }
+  .info-table td { vertical-align: top; padding: 4px 0; }
   .info-table td:first-child { color: #666; font-size: 13px; min-width: 90px; }
   .info-table td:last-child { font-weight: 600; }
   .books-table { width: 100%; border-collapse: collapse; background: #FFF5F7; border-radius: 8px; overflow: hidden; }
@@ -627,8 +616,8 @@ function printInvoice(order) {
   .totals-table td:last-child { text-align: right; font-weight: 600; }
   .grand-total td { font-size: 16px; font-weight: 800; color: #B5183D; border-top: 2px solid #B5183D; padding-top: 10px; }
   .status-badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;
-    background: ${ order.status==='delivered'?'#d1fae5':order.status==='confirmed'?'#dbeafe':'#fef3c7' };
-    color: ${ order.status==='delivered'?'#065f46':order.status==='confirmed'?'#1e40af':'#92400e' }; }
+    background: ${ order.status==='delivered'?'#d1fae5':order.status==='confirmed'?'#dbeafe':order.status==='cancelled'?'#f1f5f9':'#fef3c7' };
+    color: ${ order.status==='delivered'?'#065f46':order.status==='confirmed'?'#1e40af':order.status==='cancelled'?'#64748b':'#92400e' }; }
   .footer { text-align: center; margin-top: 30px; padding-top: 16px; border-top: 1px solid #eee; color: #999; font-size: 12px; }
   .print-btn { display: block; margin: 24px auto 0; padding: 10px 32px; background: #B5183D; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
   @media print { .print-btn { display: none !important; } body { padding: 16px; } }
@@ -638,7 +627,7 @@ function printInvoice(order) {
   <div class="inv-header">
     <div>
       <div class="shop-name">${SHOP_NAME}</div>
-      <div style="font-size:12px;color:#666;margin-top:4px">অর্ডার ইনভয়েস</div>
+      <div style="font-size:12px;color:#666;margin-top:4px">Order Invoice</div>
     </div>
     <div style="text-align:right">
       <div class="inv-label">Invoice</div>
@@ -649,50 +638,44 @@ function printInvoice(order) {
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
     <div class="section">
-      <div class="section-title">কাস্টমার তথ্য</div>
+      <div class="section-title">Customer Info</div>
       <table class="info-table">
-        <tr><td>নাম</td><td>${order.name}</td></tr>
-        <tr><td style="padding:5px 0;color:#666;font-size:13px">মোবাইল</td><td style="padding:5px 0;font-weight:600">${order.phone}</td></tr>
-        ${emailRow}
-        <tr><td style="padding:5px 0;color:#666;font-size:13px">ঠিকানা</td><td style="padding:5px 0;font-weight:600">${order.address}</td></tr>
-        <tr><td style="padding:5px 0;color:#666;font-size:13px">এলাকা</td><td style="padding:5px 0;font-weight:600">${area}</td></tr>
+        <tr><td>Name</td><td>${order.name}</td></tr>
+        <tr><td>Phone</td><td>${order.phone}</td></tr>
+        <tr><td>Address</td><td>${order.address}</td></tr>
+        <tr><td>Area</td><td>${area}</td></tr>
       </table>
     </div>
     <div class="section">
-      <div class="section-title">পেমেন্ট তথ্য</div>
+      <div class="section-title">Payment Info</div>
       <table class="info-table">
-        <tr><td>পদ্ধতি</td><td>${pay}</td></tr>
-        ${order.transaction_id ? `<tr><td style="padding:5px 0;color:#666;font-size:13px">TXN ID</td><td style="padding:5px 0;font-weight:600">${order.transaction_id}</td></tr>` : ''}
-        <tr><td style="padding:5px 0;color:#666;font-size:13px">স্ট্যাটাস</td><td style="padding:5px 0"><span class="status-badge">${stat}</span></td></tr>
+        <tr><td>Method</td><td>${pay}</td></tr>
+        ${order.transaction_id ? `<tr><td>TXN ID</td><td>${order.transaction_id}</td></tr>` : ''}
+        <tr><td>Status</td><td><span class="status-badge">${stat}</span></td></tr>
       </table>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-title">অর্ডার আইটেম</div>
+    <div class="section-title">Order Items</div>
     <table class="books-table">
-      <thead><tr><th>পণ্য</th><th style="text-align:right">মূল্য</th></tr></thead>
+      <thead><tr><th>Item</th><th style="text-align:right">Price</th></tr></thead>
       <tbody>${bookRows}</tbody>
     </table>
   </div>
 
   <div style="display:flex;justify-content:flex-end;margin-top:4px">
     <table class="totals-table" style="width:220px">
-      <tr><td style="color:#666">পণ্যের মূল্য</td><td>৳${bookTotal.toLocaleString('bn-BD')}</td></tr>
-      <tr><td style="color:#666">ডেলিভারি চার্জ</td><td>৳${delivery.toLocaleString('bn-BD')}</td></tr>
-      <tr class="grand-total"><td>মোট</td><td>৳${parseFloat(order.total).toLocaleString('bn-BD')}</td></tr>
+      <tr><td style="color:#666">Subtotal</td><td>৳${bookTotal.toLocaleString('en')}</td></tr>
+      <tr><td style="color:#666">Delivery</td><td>৳${delivery.toLocaleString('en')}</td></tr>
+      <tr class="grand-total"><td>Total</td><td>৳${parseFloat(order.total).toLocaleString('en')}</td></tr>
     </table>
   </div>
 
-  <div class="footer">
-    ধন্যবাদ আপনার অর্ডারের জন্য! — ${SHOP_NAME}
-  </div>
+  <div class="footer">Thank you for your order! — ${SHOP_NAME}</div>
+  <button class="print-btn" onclick="window.print()">🖨️ Print Invoice</button>
 
-  <button class="print-btn" onclick="window.print()">🖨️ প্রিন্ট করুন</button>
-
-<script>
-  window.onload = function() { window.print(); };
-<\/script>
+<script>window.onload = function() { window.print(); };<\/script>
 </body>
 </html>`;
 
