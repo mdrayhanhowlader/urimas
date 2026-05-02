@@ -18,7 +18,7 @@
   --radius-sm: 10px;
 }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; overflow-x: hidden; }
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
@@ -26,7 +26,10 @@ body {
   color: var(--text);
   min-height: 100vh;
   padding-bottom: 120px;
+  overflow-x: hidden;
 }
+
+img { max-width: 100%; height: auto; }
 
 /* ─── PAGE CONTENT ─── */
 .page { max-width: 1100px; margin: 0 auto; padding: 24px 16px 16px; }
@@ -362,100 +365,127 @@ textarea { resize: vertical; min-height: 80px; }
 }
 .modal-close:hover { transform: scale(1.04); box-shadow: 0 4px 16px rgba(181,24,61,.35); }
 
-/* ─── BANNER ─── */
+/* ─── BANNER: MINIMAL (disabled) ─── */
 .banner-minimal {
   background: var(--card);
   border-bottom: 1px solid var(--border);
-  padding: 14px 20px;
+  padding: 15px 20px;
   text-align: center;
 }
 .banner-minimal .banner-shop-name {
-  font-size: 1.25rem; font-weight: 800; letter-spacing: -.4px;
+  font-size: 1.3rem; font-weight: 800; letter-spacing: -.4px;
   background: linear-gradient(135deg, var(--accent-grad) 0%, var(--accent) 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   text-decoration: none;
 }
 
+/* ─── BANNER: HERO ─── */
 .banner-hero {
   position: relative; overflow: hidden;
-  background: linear-gradient(140deg, #5C0018 0%, var(--accent) 55%, #C8224A 100%);
-  padding: 58px 20px 92px;
+  /* Layered gradient: soft radial spotlight on top + directional base */
+  background:
+    radial-gradient(ellipse 120% 70% at 50% -5%, rgba(255,255,255,.18) 0%, transparent 62%),
+    linear-gradient(150deg, var(--accent-dark) 0%, var(--accent) 52%, #D63E65 100%);
+  padding: 64px 24px 108px;
   text-align: center;
 }
-.banner-hero.banner-has-img { padding: 0; background: #0a0006; }
 
-.banner-hero-img { width: 100%; height: 280px; object-fit: cover; display: block; opacity: .82; }
-.banner-img-overlay {
-  position: absolute; inset: 0;
-  background: linear-gradient(160deg, rgba(6,0,3,.82) 0%, rgba(181,24,61,.46) 45%, rgba(6,0,3,.78) 100%);
+/* Decorative rings — pure CSS, no extra HTML */
+.banner-hero::before {
+  content: '';
+  position: absolute; top: -80px; left: -80px;
+  width: 280px; height: 280px;
+  border: 50px solid rgba(255,255,255,.06);
+  border-radius: 50%; pointer-events: none;
+}
+.banner-hero::after {
+  content: '';
+  position: absolute; bottom: 24px; right: -70px;
+  width: 300px; height: 300px;
+  border: 52px solid rgba(255,255,255,.07);
+  border-radius: 50%; pointer-events: none;
 }
 
-.banner-blob {
-  position: absolute; border-radius: 50%;
-  background: rgba(255,255,255,.07); filter: blur(52px); pointer-events: none;
+/* ── Image banner: no overlay, subtle bottom fade only ── */
+.banner-hero.banner-has-img {
+  padding: 0; background: #111;
 }
-.banner-blob-1 { width: 380px; height: 380px; top: -140px; right: -90px; }
-.banner-blob-2 { width: 260px; height: 260px; bottom: -100px; left: -55px; }
-.banner-blob-3 { width: 160px; height: 160px; top: 30px; left: 35%; background: rgba(255,255,255,.04); }
-.banner-dots {
-  position: absolute; inset: 0;
-  background-image: radial-gradient(rgba(255,255,255,.08) 1.5px, transparent 1.5px);
-  background-size: 26px 26px; pointer-events: none;
+.banner-hero.banner-has-img::before { display: none; }
+.banner-hero.banner-has-img::after {
+  /* Reuse ::after for bottom-fade gradient instead of ring */
+  inset: auto 0 0 0; width: auto; height: 55%; right: 0; bottom: 0;
+  background: linear-gradient(to top, rgba(0,0,0,.62) 0%, transparent 100%);
+  border: none; border-radius: 0;
 }
 
-.banner-inner { position: relative; z-index: 2; max-width: 720px; margin: 0 auto; }
+.banner-hero-img {
+  width: 100%; height: 300px; object-fit: cover; display: block;
+}
+
+/* ── Inner content ── */
+.banner-inner {
+  position: relative; z-index: 3;
+  max-width: 680px; margin: 0 auto;
+}
 .banner-has-img .banner-inner {
-  position: absolute; z-index: 4;
-  bottom: 54px; left: 0; right: 0; padding: 0 24px;
+  position: absolute; z-index: 5;
+  bottom: 60px; left: 0; right: 0; padding: 0 28px;
 }
 
+/* Shop name — small eyebrow label */
 .banner-shop-name {
   display: block; text-align: center;
-  font-size: 1rem; font-weight: 800; letter-spacing: .01em;
-  color: rgba(255,255,255,.88);
+  font-size: .68rem; font-weight: 800;
+  letter-spacing: .16em; text-transform: uppercase;
+  color: rgba(255,255,255,.65);
   text-decoration: none;
-  margin-bottom: 16px;
-  text-shadow: 0 1px 10px rgba(0,0,0,.35);
+  margin-bottom: 14px;
 }
 
 .banner-hl {
-  font-size: 2rem; font-weight: 800; color: #fff;
-  line-height: 1.18; letter-spacing: -.02em;
-  text-shadow: 0 2px 24px rgba(0,0,0,.28);
-  margin-bottom: 12px;
+  font-size: 2.25rem; font-weight: 800; color: #fff;
+  line-height: 1.14; letter-spacing: -.03em;
+  margin-bottom: 14px;
 }
 .banner-sl {
-  font-size: .92rem; color: rgba(255,255,255,.82);
-  line-height: 1.65; margin-bottom: 26px; font-weight: 400;
+  font-size: .94rem; color: rgba(255,255,255,.78);
+  line-height: 1.7; margin-bottom: 30px; font-weight: 400;
+  max-width: 480px; margin-left: auto; margin-right: auto;
 }
 .banner-has-img .banner-sl { margin-bottom: 0; }
+
 .banner-cta {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: #fff; color: var(--accent);
+  display: inline-flex; align-items: center; gap: 9px;
+  background: rgba(255,255,255,.96); color: var(--accent);
   font-weight: 800; font-size: .88rem; font-family: inherit;
-  padding: 12px 30px; border-radius: 50px; border: none; cursor: pointer;
-  box-shadow: 0 4px 22px rgba(0,0,0,.22);
-  transition: transform .2s, box-shadow .2s;
-  text-decoration: none; letter-spacing: .01em;
+  padding: 13px 34px; border-radius: 50px; border: none; cursor: pointer;
+  box-shadow: 0 6px 28px rgba(0,0,0,.22);
+  transition: transform .2s, box-shadow .2s, background .15s;
+  letter-spacing: .01em;
 }
-.banner-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,.26); }
+.banner-cta:hover { transform: translateY(-2px); box-shadow: 0 10px 38px rgba(0,0,0,.26); background: #fff; }
 .banner-cta:active { transform: scale(.97); }
 
 .banner-wave {
-  position: absolute; bottom: -1px; left: 0; right: 0; z-index: 5;
-  line-height: 0; height: 50px;
+  position: absolute; bottom: -1px; left: 0; right: 0; z-index: 6;
+  line-height: 0; height: 56px;
 }
 .banner-wave svg { width: 100%; height: 100%; display: block; }
 
 @media (min-width: 768px) {
-  .banner-hero:not(.banner-has-img) { padding: 84px 20px 116px; }
-  .banner-hero-img { height: 420px; }
-  .banner-has-img .banner-inner { bottom: 76px; }
-  .banner-hl { font-size: 3rem; }
-  .banner-sl { font-size: 1.02rem; }
-  .banner-wave { height: 66px; }
+  .banner-hero:not(.banner-has-img) { padding: 90px 24px 130px; }
+  .banner-hero-img { height: 450px; }
+  .banner-has-img .banner-inner { bottom: 84px; }
+  .banner-hl { font-size: 3.25rem; }
+  .banner-sl { font-size: 1.04rem; }
+  .banner-wave { height: 72px; }
+  .banner-hero::before { width: 360px; height: 360px; top: -100px; left: -100px; }
+  .banner-hero::after  { width: 400px; height: 400px; bottom: 32px; right: -90px; }
 }
-@media (max-width: 420px) { .banner-hl { font-size: 1.6rem; } }
+@media (max-width: 420px) {
+  .banner-hl { font-size: 1.75rem; }
+  .banner-hero { padding: 52px 20px 96px; }
+}
 
 /* ─── bKash QR ─── */
 .bkash-qr-wrap {
@@ -588,3 +618,53 @@ textarea { resize: vertical; min-height: 80px; }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── MOBILE RESPONSIVE ─── */
+
+/* Order bar: anchored to sides on narrow screens */
+@media (max-width: 460px) {
+  .order-bar {
+    left: 12px; right: 12px; min-width: unset; max-width: unset;
+    transform: translateY(100px); padding: 12px 16px;
+  }
+  .order-bar.visible { transform: translateY(0); }
+  .order-bar-total { font-size: 1rem; }
+  .order-bar-btn { padding: 9px 16px; font-size: .84rem; }
+}
+
+/* Order form spacing on mobile */
+@media (max-width: 500px) {
+  .order-header { padding: 15px 16px; }
+  .order-header h2 { font-size: 1rem; }
+  .order-summary { padding: 12px 14px; }
+  .form-body { padding: 14px; }
+  .order-back-btn { padding: 5px 11px; font-size: .76rem; }
+}
+
+/* Payment buttons: keep readable on very small screens */
+@media (max-width: 380px) {
+  .pay-btn { font-size: .78rem; padding: 10px 6px; gap: 5px; }
+  .pay-btn i { font-size: .85rem; }
+}
+
+/* Card name slightly smaller on very small phones */
+@media (max-width: 360px) {
+  .card-name { font-size: .76rem; }
+  .card-price { font-size: .86rem; }
+  .products-grid { gap: 8px; }
+  .card-body { padding: 8px 8px 0; }
+}
+
+/* Ensure page wrapper never creates horizontal scroll */
+.page { max-width: 100%; }
+@media (max-width: 767px) {
+  .page { padding: 20px 12px 12px; }
+}
+
+/* Toast: never overflow on small screens */
+.toast { max-width: calc(100vw - 32px); white-space: normal; text-align: center; }
+
+/* Banner wave height on very small screens */
+@media (max-width: 380px) {
+  .banner-wave { height: 38px; }
+}
