@@ -3,7 +3,8 @@ let allBooks = [];
 let settings = {};
 let selectedIds = new Set();
 let selectedVariants = new Map(); // productId → Set<variant>
-let paymentMethod = 'bkash';
+let selectedColors   = new Map(); // productId → selected color name
+let paymentMethod = 'cod';
 const bkashMode   = window.BKASH_MODE   || 'manual';
 const pixelId     = window.PIXEL_ID     || '';
 const countryCode = window.COUNTRY_CODE || '+880';
@@ -55,7 +56,8 @@ async function loadData() {
       allBooks = booksData.books.map(b => ({
         ...b,
         variants: Array.isArray(b.variants) ? b.variants
-          : (b.variants ? (JSON.parse(b.variants) || []) : [])
+          : (b.variants ? (JSON.parse(b.variants) || []) : []),
+        color_variants: Array.isArray(b.color_variants) ? b.color_variants : [],
       }));
       renderProducts();
     }
@@ -66,6 +68,7 @@ async function loadData() {
       if (numEl) numEl.textContent = settings.bkash_number || '—';
 
       renderBkashBox();
+      setPayment(paymentMethod);
 
       const dChg = parseFloat(settings.dhaka_charge   || 80);
       const oChg = parseFloat(settings.outside_charge || 140);
@@ -122,7 +125,18 @@ function renderProducts() {
          </div>`
       : '';
 
-    const defaultHint = variants.length > 0 ? 'Choose size' : 'Select';
+    const colorVariants = book.color_variants || [];
+    const colorHtml = colorVariants.length > 0
+      ? `<div class="card-colors" id="colors-${book.id}" onclick="event.stopPropagation()">
+           ${colorVariants.map(c =>
+             `<span class="color-swatch" title="${escHtml(c.name)}"
+                    style="background:${escHtml(c.code)}" data-c="${escHtml(c.name)}"
+                    onclick="selectColor(${book.id},this.dataset.c,event)"></span>`
+           ).join('')}
+         </div>`
+      : '';
+
+    const defaultHint = variants.length > 0 ? 'Choose size' : colorVariants.length > 0 ? 'Choose color' : 'Select';
 
     return `
       <div class="product-card" id="card-${book.id}" onclick="toggleProduct(${book.id})">
@@ -139,6 +153,7 @@ function renderProducts() {
             ${pdfBtns}
           </div>
           ${variantHtml}
+          ${colorHtml}
         </div>
         <div class="card-tap-bar" id="hint-${book.id}">${defaultHint}</div>
       </div>`;
@@ -170,6 +185,31 @@ function selectVariant(id, variant, event) {
     if (isNew) {
       fbqTrack('ViewContent', { content_ids: [String(id)], content_name: book.name, content_type: 'product', value: parseFloat(book.price), currency: 'BDT' });
       fbqTrack('AddToCart',   { content_ids: [String(id)], content_name: book.name, content_type: 'product', value: parseFloat(book.price), currency: 'BDT' });
+    }
+  }
+  updateSelectionUI();
+}
+
+// ─── Color selection ─────────────────────────────────────
+function selectColor(id, colorName, event) {
+  event.stopPropagation();
+  const book = allBooks.find(b => b.id === id);
+  if (!book) return;
+
+  const hasVariants = book.variants && book.variants.length > 0;
+  const isNew = !selectedIds.has(id);
+
+  if (selectedColors.get(id) === colorName) {
+    selectedColors.delete(id);
+    if (!hasVariants) selectedIds.delete(id);
+  } else {
+    selectedColors.set(id, colorName);
+    if (!hasVariants) {
+      selectedIds.add(id);
+      if (isNew) {
+        fbqTrack('ViewContent', { content_ids: [String(id)], content_name: book.name, content_type: 'product', value: parseFloat(book.price), currency: 'BDT' });
+        fbqTrack('AddToCart',   { content_ids: [String(id)], content_name: book.name, content_type: 'product', value: parseFloat(book.price), currency: 'BDT' });
+      }
     }
   }
   updateSelectionUI();
@@ -207,9 +247,21 @@ function toggleProduct(id) {
     if (selectedIds.has(id)) {
       selectedIds.delete(id);
       selectedVariants.delete(id);
+      selectedColors.delete(id);
       updateSelectionUI();
     } else {
       showToast('Please choose a size above');
+    }
+    return;
+  }
+
+  if (book.color_variants && book.color_variants.length > 0) {
+    if (selectedIds.has(id)) {
+      selectedIds.delete(id);
+      selectedColors.delete(id);
+      updateSelectionUI();
+    } else {
+      showToast('Please choose a color above');
     }
     return;
   }
@@ -229,11 +281,12 @@ function removeProduct(id, variant) {
     const varSet = selectedVariants.get(id);
     if (varSet) {
       varSet.delete(variant);
-      if (varSet.size === 0) { selectedVariants.delete(id); selectedIds.delete(id); }
+      if (varSet.size === 0) { selectedVariants.delete(id); selectedIds.delete(id); selectedColors.delete(id); }
     }
   } else {
     selectedIds.delete(id);
     selectedVariants.delete(id);
+    selectedColors.delete(id);
   }
   updateSelectionUI();
   if (selectedIds.size === 0) closeOrderForm();
@@ -244,11 +297,14 @@ function updateSelectionUI() {
     const card        = document.getElementById(`card-${book.id}`);
     const hint        = document.getElementById(`hint-${book.id}`);
     const variantsDiv = document.getElementById(`variants-${book.id}`);
+    const colorsDiv   = document.getElementById(`colors-${book.id}`);
     if (!card) return;
 
     const isSelected  = selectedIds.has(book.id);
     const varSet      = selectedVariants.get(book.id) || new Set();
     const hasVariants = book.variants && book.variants.length > 0;
+    const hasColors   = book.color_variants && book.color_variants.length > 0;
+    const selColor    = selectedColors.get(book.id);
 
     card.classList.toggle('selected', isSelected);
 
@@ -258,12 +314,19 @@ function updateSelectionUI() {
       ).join('');
     }
 
+    if (colorsDiv && hasColors) {
+      colorsDiv.querySelectorAll('.color-swatch').forEach(swatch => {
+        swatch.classList.toggle('active', swatch.dataset.c === selColor);
+      });
+    }
+
     if (hint) {
       if (isSelected) {
         const varList = [...varSet].join(', ');
-        hint.textContent = varList ? `✓ ${varList} — Added` : '✓ Added';
+        const colorPart = selColor ? ` · ${selColor}` : '';
+        hint.textContent = varList ? `✓ ${varList}${colorPart} — Added` : selColor ? `✓ ${selColor} — Added` : '✓ Added';
       } else {
-        hint.textContent = hasVariants ? 'Choose size' : 'Select';
+        hint.textContent = hasVariants ? 'Choose size' : hasColors ? 'Choose color' : 'Select';
       }
     }
   });
@@ -328,15 +391,16 @@ function updateOrderSummary() {
   const lines = [];
   selected.forEach(b => {
     const vs = selectedVariants.get(b.id);
+    const color = selectedColors.get(b.id) || '';
     if (vs && vs.size > 0) {
-      [...vs].forEach(v => { lines.push({ book: b, variant: v }); bookTotal += parseFloat(b.price); });
+      [...vs].forEach(v => { lines.push({ book: b, variant: v, color }); bookTotal += parseFloat(b.price); });
     } else {
-      lines.push({ book: b, variant: '' });
+      lines.push({ book: b, variant: '', color });
       bookTotal += parseFloat(b.price);
     }
   });
 
-  document.getElementById('orderItemsList').innerHTML = lines.map(({ book: b, variant }) => {
+  document.getElementById('orderItemsList').innerHTML = lines.map(({ book: b, variant, color }) => {
     const imgSrc = b.image
       ? (b.image.startsWith('http') ? b.image : 'assets/images/books/' + b.image)
       : '';
@@ -346,13 +410,17 @@ function updateOrderSummary() {
     const variantTag = variant
       ? `<span style="font-size:.65rem;font-weight:700;background:var(--accent);color:#fff;padding:1px 7px;border-radius:20px;margin-left:5px;flex-shrink:0">${escHtml(variant)}</span>`
       : '';
+    const colorInfo = color ? (b.color_variants || []).find(c => c.name === color) : null;
+    const colorTag = color
+      ? `<span style="font-size:.65rem;font-weight:700;background:${colorInfo?.code||'#555'};color:#fff;padding:1px 7px;border-radius:20px;margin-left:5px;flex-shrink:0">${escHtml(color)}</span>`
+      : '';
     const removeBtn = variant
       ? `<button class="order-item-remove" data-bid="${b.id}" data-v="${escHtml(variant)}" onclick="removeProduct(+this.dataset.bid,this.dataset.v)" title="Remove">✕</button>`
       : `<button class="order-item-remove" onclick="removeProduct(${b.id})" title="Remove">✕</button>`;
     return `<div class="order-item" style="gap:10px">
       ${thumb}
       <span class="order-item-name" style="flex:1;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:2px">
-        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(b.name)}</span>${variantTag}
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(b.name)}</span>${variantTag}${colorTag}
       </span>
       <span style="display:flex;align-items:center;gap:4px;flex-shrink:0">
         <span class="order-item-price">৳${parseFloat(b.price).toLocaleString('en')}</span>
@@ -428,16 +496,27 @@ function renderBkashBox() {
     if (txnField)  txnField.classList.remove('show');
   } else {
     const qrBlock = document.getElementById('bkashQrBlock');
-    if (qrBlock && settings.bkash_qr_url && !qrBlock.innerHTML.trim()) {
+    if (qrBlock && !qrBlock.innerHTML.trim()) {
+      const num = escHtml(settings.bkash_number || '');
+      const qrImg = settings.bkash_qr_url
+        ? `<img src="${escHtml(settings.bkash_qr_url)}" alt="bKash QR" class="bkash-qr-img">`
+        : '';
+      const note = settings.bkash_note ? escHtml(settings.bkash_note) : '';
+      const noteHtml = note
+        ? `<div style="margin-top:8px;padding:7px 12px;background:#fff0f0;border:1.5px dashed #fca5a5;border-radius:8px;font-size:.82rem;font-weight:700;color:#dc2626">
+             <i class="fas fa-info-circle" style="margin-right:5px"></i>${note}
+           </div>`
+        : '';
       qrBlock.innerHTML = `
         <div class="bkash-qr-wrap">
-          <img src="${escHtml(settings.bkash_qr_url)}" alt="bKash QR" class="bkash-qr-img">
+          ${qrImg}
           <div class="bkash-qr-info">
-            <div class="bkash-label">Scan bKash QR or send to number</div>
-            <div class="bkash-number" style="margin-top:4px">${escHtml(settings.bkash_number||'')}</div>
+            <div class="bkash-label">${settings.bkash_qr_url ? 'Scan QR বা নিচের নম্বরে পাঠান' : 'নিচের নম্বরে bKash করুন'}</div>
+            <div class="bkash-number-big">${num}</div>
+            ${noteHtml}
             <button type="button" class="copy-btn" onclick="copyBkash()"
-                    style="margin-top:8px;display:inline-flex;align-items:center;gap:6px">
-              <i class="fas fa-copy"></i> Copy
+                    style="margin-top:10px;display:inline-flex;align-items:center;gap:6px">
+              <i class="fas fa-copy"></i> নম্বর কপি করুন
             </button>
           </div>
         </div>`;
@@ -475,8 +554,9 @@ async function initiateBkashPayment() {
   const booksArr = [];
   allBooks.filter(b => selectedIds.has(b.id)).forEach(b => {
     const vs = selectedVariants.get(b.id);
-    if (vs && vs.size > 0) vs.forEach(v => booksArr.push({ id: b.id, variant: v }));
-    else booksArr.push({ id: b.id, variant: '' });
+    const color = selectedColors.get(b.id) || '';
+    if (vs && vs.size > 0) vs.forEach(v => booksArr.push({ id: b.id, variant: v, color }));
+    else booksArr.push({ id: b.id, variant: '', color });
   });
 
   const orderBody = new FormData();
@@ -548,8 +628,9 @@ async function handleSubmit(e) {
   const booksArr = [];
   allBooks.filter(b => selectedIds.has(b.id)).forEach(b => {
     const vs = selectedVariants.get(b.id);
-    if (vs && vs.size > 0) vs.forEach(v => booksArr.push({ id: b.id, variant: v }));
-    else booksArr.push({ id: b.id, variant: '' });
+    const color = selectedColors.get(b.id) || '';
+    if (vs && vs.size > 0) vs.forEach(v => booksArr.push({ id: b.id, variant: v, color }));
+    else booksArr.push({ id: b.id, variant: '', color });
   });
 
   const body = new FormData();
@@ -593,12 +674,13 @@ async function handleSubmit(e) {
 function resetAll() {
   selectedIds.clear();
   selectedVariants.clear();
-  paymentMethod = 'bkash';
+  selectedColors.clear();
+  paymentMethod = 'cod';
   document.getElementById('successModal').classList.remove('show');
   document.getElementById('orderForm').reset();
-  document.getElementById('btnBkash').classList.add('active');
-  document.getElementById('btnCod').classList.remove('active');
-  renderBkashBox();
+  document.getElementById('btnCod').classList.add('active');
+  document.getElementById('btnBkash').classList.remove('active');
+  setPayment('cod');
   closeOrderForm();
   updateSelectionUI();
 }

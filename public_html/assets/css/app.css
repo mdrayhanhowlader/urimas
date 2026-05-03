@@ -155,6 +155,25 @@ img { max-width: 100%; height: auto; }
 .variant-chip:hover:not(.active) { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 @media (max-width: 767px) { .variant-chip { font-size: .64rem; padding: 2px 8px; } }
 
+/* Color swatches */
+.card-colors {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; padding-bottom: 2px;
+}
+.color-swatch {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2.5px solid rgba(255,255,255,.8);
+  box-shadow: 0 0 0 1.5px rgba(0,0,0,.15);
+  cursor: pointer; flex-shrink: 0;
+  transition: transform .15s, box-shadow .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.color-swatch:hover { transform: scale(1.2); }
+.color-swatch.active {
+  box-shadow: 0 0 0 2.5px var(--accent);
+  transform: scale(1.18);
+}
+@media (max-width: 767px) { .color-swatch { width: 20px; height: 20px; } }
+
 /* Card bottom tap bar */
 .card-tap-bar {
   margin-top: 10px;
@@ -365,126 +384,128 @@ textarea { resize: vertical; min-height: 80px; }
 }
 .modal-close:hover { transform: scale(1.04); box-shadow: 0 4px 16px rgba(181,24,61,.35); }
 
-/* ─── BANNER: MINIMAL (disabled) ─── */
-.banner-minimal {
-  background: var(--card);
+/* ─── SITE HEADER (logo only) ─── */
+.site-header {
+  position: sticky; top: 0; z-index: 200;
+  background: rgba(255,255,255,.97);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
   border-bottom: 1px solid var(--border);
-  padding: 15px 20px;
-  text-align: center;
 }
-.banner-minimal .banner-shop-name {
-  font-size: 1.3rem; font-weight: 800; letter-spacing: -.4px;
-  background: linear-gradient(135deg, var(--accent-grad) 0%, var(--accent) 100%);
+.site-nav-inner {
+  max-width: 1100px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  height: 62px; padding: 0 24px;
+}
+.site-logo {
+  font-size: 1.55rem; font-weight: 800;
+  font-style: italic; letter-spacing: -.04em;
+  background: linear-gradient(135deg, var(--text) 15%, var(--accent) 85%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   text-decoration: none;
 }
 
-/* ─── BANNER: HERO ─── */
+/* scroll offset for sticky nav */
+#productsSection { scroll-margin-top: 72px; }
+#orderSection    { scroll-margin-top: 72px; }
+
+/* ─── BANNER: HERO (gradient split) ─── */
 .banner-hero {
   position: relative; overflow: hidden;
-  /* Layered gradient: soft radial spotlight on top + directional base */
-  background:
-    radial-gradient(ellipse 120% 70% at 50% -5%, rgba(255,255,255,.18) 0%, transparent 62%),
-    linear-gradient(150deg, var(--accent-dark) 0%, var(--accent) 52%, #D63E65 100%);
-  padding: 64px 24px 108px;
-  text-align: center;
+  background: linear-gradient(135deg, #0e0306 0%, #4a0e1a 38%, #8f1e36 68%, #d4254e 100%);
+  padding: 72px 40px 80px;
+  min-height: 440px;
 }
-
-/* Decorative rings — pure CSS, no extra HTML */
 .banner-hero::before {
-  content: '';
-  position: absolute; top: -80px; left: -80px;
-  width: 280px; height: 280px;
-  border: 50px solid rgba(255,255,255,.06);
-  border-radius: 50%; pointer-events: none;
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 80% at 78% 50%, rgba(231,54,97,.22) 0%, transparent 68%),
+    radial-gradient(ellipse 40% 50% at 8% 88%,  rgba(0,0,0,.35) 0%, transparent 55%);
 }
-.banner-hero::after {
-  content: '';
-  position: absolute; bottom: 24px; right: -70px;
-  width: 300px; height: 300px;
-  border: 52px solid rgba(255,255,255,.07);
-  border-radius: 50%; pointer-events: none;
-}
-
-/* ── Image banner: no overlay, subtle bottom fade only ── */
-.banner-hero.banner-has-img {
-  padding: 0; background: #111;
-}
-.banner-hero.banner-has-img::before { display: none; }
-.banner-hero.banner-has-img::after {
-  /* Reuse ::after for bottom-fade gradient instead of ring */
-  inset: auto 0 0 0; width: auto; height: 55%; right: 0; bottom: 0;
-  background: linear-gradient(to top, rgba(0,0,0,.62) 0%, transparent 100%);
-  border: none; border-radius: 0;
-}
-
-.banner-hero-img {
-  width: 100%; height: 300px; object-fit: cover; display: block;
-}
-
-/* ── Inner content ── */
 .banner-inner {
-  position: relative; z-index: 3;
-  max-width: 680px; margin: 0 auto;
+  position: relative; z-index: 2;
+  max-width: 1100px; margin: 0 auto;
+  display: flex; align-items: center; gap: 56px;
 }
-.banner-has-img .banner-inner {
-  position: absolute; z-index: 5;
-  bottom: 60px; left: 0; right: 0; padding: 0 28px;
-}
+.banner-text-col { flex: 1; min-width: 0; }
 
-/* Shop name — small eyebrow label */
-.banner-shop-name {
-  display: block; text-align: center;
-  font-size: .68rem; font-weight: 800;
-  letter-spacing: .16em; text-transform: uppercase;
-  color: rgba(255,255,255,.65);
-  text-decoration: none;
-  margin-bottom: 14px;
+.banner-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .72rem; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: rgba(255,255,255,.55); margin-bottom: 20px; font-style: italic;
 }
-
 .banner-hl {
-  font-size: 2.25rem; font-weight: 800; color: #fff;
-  line-height: 1.14; letter-spacing: -.03em;
-  margin-bottom: 14px;
+  font-size: 3.2rem; font-weight: 800;
+  color: #fff; line-height: 1.06; letter-spacing: -.05em; margin-bottom: 20px;
 }
 .banner-sl {
-  font-size: .94rem; color: rgba(255,255,255,.78);
-  line-height: 1.7; margin-bottom: 30px; font-weight: 400;
-  max-width: 480px; margin-left: auto; margin-right: auto;
+  font-size: 1rem; color: rgba(255,255,255,.68);
+  line-height: 1.78; margin-bottom: 40px; max-width: 440px;
 }
-.banner-has-img .banner-sl { margin-bottom: 0; }
-
+.banner-cta-wrap { margin-top: 4px; }
 .banner-cta {
-  display: inline-flex; align-items: center; gap: 9px;
-  background: rgba(255,255,255,.96); color: var(--accent);
-  font-weight: 800; font-size: .88rem; font-family: inherit;
-  padding: 13px 34px; border-radius: 50px; border: none; cursor: pointer;
-  box-shadow: 0 6px 28px rgba(0,0,0,.22);
-  transition: transform .2s, box-shadow .2s, background .15s;
+  display: inline-flex; align-items: center; gap: 10px;
+  background: #fff; color: var(--accent);
+  font-weight: 700; font-size: .92rem; font-family: inherit;
+  padding: 15px 40px; border-radius: 50px; border: none; cursor: pointer;
+  box-shadow: 0 4px 28px rgba(0,0,0,.3);
+  transition: transform .22s cubic-bezier(.34,1.3,.64,1), box-shadow .2s;
   letter-spacing: .01em;
 }
-.banner-cta:hover { transform: translateY(-2px); box-shadow: 0 10px 38px rgba(0,0,0,.26); background: #fff; }
+.banner-cta:hover { transform: translateY(-3px); box-shadow: 0 10px 40px rgba(0,0,0,.4); }
 .banner-cta:active { transform: scale(.97); }
+.banner-cta i { font-size: .78rem; transition: transform .2s; }
+.banner-cta:hover i { transform: translateX(3px); }
 
-.banner-wave {
-  position: absolute; bottom: -1px; left: 0; right: 0; z-index: 6;
-  line-height: 0; height: 56px;
+/* ── Right-side circular image disc ── */
+.banner-disc-wrap {
+  position: relative; flex-shrink: 0;
+  width: 300px; height: 300px;
+  display: flex; align-items: center; justify-content: center;
 }
-.banner-wave svg { width: 100%; height: 100%; display: block; }
+.banner-disc {
+  width: 100%; height: 100%; border-radius: 50%; overflow: hidden;
+  background: rgba(255,255,255,.08);
+  border: 2px solid rgba(255,255,255,.18);
+  box-shadow: 0 20px 64px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.06);
+  position: relative; z-index: 2;
+}
+.banner-disc-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.banner-disc-placeholder {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 42% 38%, rgba(255,255,255,.13) 0%, transparent 65%);
+  font-size: 3.2rem; color: rgba(255,255,255,.18);
+}
+.banner-disc-ring {
+  position: absolute; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.08);
+  top: 50%; left: 50%; transform: translate(-50%,-50%);
+  pointer-events: none;
+}
+.banner-disc-ring-1 { width: 360px; height: 360px; }
+.banner-disc-ring-2 { width: 420px; height: 420px; opacity: .5; }
 
-@media (min-width: 768px) {
-  .banner-hero:not(.banner-has-img) { padding: 90px 24px 130px; }
-  .banner-hero-img { height: 450px; }
-  .banner-has-img .banner-inner { bottom: 84px; }
-  .banner-hl { font-size: 3.25rem; }
-  .banner-sl { font-size: 1.04rem; }
-  .banner-wave { height: 72px; }
-  .banner-hero::before { width: 360px; height: 360px; top: -100px; left: -100px; }
-  .banner-hero::after  { width: 400px; height: 400px; bottom: 32px; right: -90px; }
+/* Responsive */
+@media (min-width: 900px) {
+  .banner-hero { padding: 92px 60px 100px; min-height: 500px; }
+  .banner-hl { font-size: 4rem; }
+  .banner-disc-wrap { width: 360px; height: 360px; }
+  .banner-disc-ring-1 { width: 430px; height: 430px; }
+  .banner-disc-ring-2 { width: 500px; height: 500px; }
 }
-@media (max-width: 420px) {
-  .banner-hl { font-size: 1.75rem; }
-  .banner-hero { padding: 52px 20px 96px; }
+@media (max-width: 767px) {
+  .banner-inner { flex-direction: column-reverse; gap: 36px; text-align: center; }
+  .banner-sl { max-width: 100%; }
+  .banner-disc-wrap { width: 200px; height: 200px; }
+  .banner-disc-ring-1 { width: 240px; height: 240px; }
+  .banner-disc-ring-2 { width: 280px; height: 280px; }
+}
+@media (max-width: 480px) {
+  .banner-hero { padding: 48px 20px 56px; }
+  .banner-hl { font-size: 2.2rem; }
+  .banner-cta { padding: 13px 30px; font-size: .88rem; }
 }
 
 /* ─── bKash QR ─── */
@@ -493,9 +514,16 @@ textarea { resize: vertical; min-height: 80px; }
   background: #fff3f3; border: 1.5px solid #fca5a5;
   border-radius: var(--radius-sm); padding: 14px 16px; margin-top: 12px;
 }
-.bkash-qr-img { width: 90px; height: 90px; object-fit: contain; border-radius: 8px; border: 1px solid #fca5a5; flex-shrink: 0; }
+.bkash-qr-img { width: 110px; height: 110px; object-fit: contain; border-radius: 8px; border: 1px solid #fca5a5; flex-shrink: 0; }
 .bkash-qr-info { flex: 1; }
-.bkash-qr-info .bkash-label { margin-bottom: 4px; }
+.bkash-qr-info .bkash-label { margin-bottom: 6px; }
+.bkash-number-big {
+  font-size: 1.55rem; font-weight: 800; color: #dc2626;
+  letter-spacing: .04em; line-height: 1.1;
+  background: #fff0f0; display: inline-block;
+  padding: 6px 14px; border-radius: 8px;
+  border: 1.5px dashed #fca5a5; margin-top: 2px;
+}
 @media (max-width: 400px) { .bkash-qr-wrap { flex-direction: column; align-items: flex-start; } }
 
 /* ─── CARD AUTHOR / FOOTER ─── */
@@ -664,7 +692,3 @@ textarea { resize: vertical; min-height: 80px; }
 /* Toast: never overflow on small screens */
 .toast { max-width: calc(100vw - 32px); white-space: normal; text-align: center; }
 
-/* Banner wave height on very small screens */
-@media (max-width: 380px) {
-  .banner-wave { height: 38px; }
-}

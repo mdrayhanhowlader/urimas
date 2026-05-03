@@ -9,6 +9,9 @@ try {
         $b['variants'] = !empty($b['variants'])
             ? (json_decode($b['variants'], true) ?: [])
             : [];
+        $b['color_variants'] = !empty($b['color_variants'])
+            ? (json_decode($b['color_variants'], true) ?: [])
+            : [];
     }
     unset($b);
 

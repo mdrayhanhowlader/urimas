@@ -37,6 +37,7 @@ try {
 
     $public = [
         'bkash_number'    => $settings['bkash_number']   ?? '',
+        'bkash_note'      => $settings['bkash_note']     ?? '',
         'dhaka_charge'    => $settings['dhaka_charge']   ?? 80,
         'outside_charge'  => $settings['outside_charge'] ?? 140,
         'shop_name'       => $settings['shop_name']      ?? 'Urimas Books',

@@ -17,6 +17,8 @@ $BANNER_URL  = '../assets/images/banner/';
 // Auto-migrations
 foreach ([
     "ALTER TABLE books ADD COLUMN author VARCHAR(255) NOT NULL DEFAULT '' AFTER name",
+    "ALTER TABLE settings ADD COLUMN bkash_number VARCHAR(20) NOT NULL DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN bkash_note VARCHAR(255) NOT NULL DEFAULT ''",
     "ALTER TABLE settings ADD COLUMN bkash_mode VARCHAR(10) NOT NULL DEFAULT 'manual'",
     "ALTER TABLE settings ADD COLUMN bkash_qr_image VARCHAR(255) NOT NULL DEFAULT ''",
     "ALTER TABLE settings ADD COLUMN bkash_app_key VARCHAR(255) NOT NULL DEFAULT ''",
@@ -33,6 +35,9 @@ foreach ([
     "ALTER TABLE settings ADD COLUMN country_code VARCHAR(15) NOT NULL DEFAULT '+880'",
     "ALTER TABLE orders ADD COLUMN email VARCHAR(255) NOT NULL DEFAULT ''",
     "ALTER TABLE books ADD COLUMN variants TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE books ADD COLUMN color_variants TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN banner_grad_from VARCHAR(20) NOT NULL DEFAULT '#0e0306'",
+    "ALTER TABLE settings ADD COLUMN banner_grad_to   VARCHAR(20) NOT NULL DEFAULT '#d4254e'",
 ] as $sql) {
     try { $pdo->exec($sql); } catch (Exception $e) {}
 }
@@ -151,12 +156,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'add_book') {
     $vrraw  = trim($_POST['new_variants']     ?? '');
     $vrarr  = array_values(array_filter(array_map('trim', explode(',', $vrraw))));
     $vrjson = !empty($vrarr) ? json_encode($vrarr, JSON_UNESCAPED_UNICODE) : '';
+    $cv_raw  = trim($_POST['color_variants_json'] ?? '');
+    $cv_arr  = json_decode($cv_raw, true);
+    $cv_json = (is_array($cv_arr) && !empty($cv_arr)) ? json_encode($cv_arr, JSON_UNESCAPED_UNICODE) : '';
     $img = $pdf = '';
     if (!empty($_FILES['new_image']['name'])) { $fn = uploadBookImage($_FILES['new_image'], $UPLOAD_DIR); if ($fn) $img = $fn; }
     if (!empty($_FILES['new_pdf']['name']))   { $fn = uploadPdf($_FILES['new_pdf'], $PDF_DIR);            if ($fn) $pdf = $fn; }
     if ($name && $price > 0) {
-        $pdo->prepare("INSERT INTO books (name, author, description, price, image, sample_pdf, variants) VALUES (?,?,?,?,?,?,?)")
-            ->execute([$name, $author, $desc, $price, $img, $pdf, $vrjson]);
+        $pdo->prepare("INSERT INTO books (name, author, description, price, image, sample_pdf, variants, color_variants) VALUES (?,?,?,?,?,?,?,?)")
+            ->execute([$name, $author, $desc, $price, $img, $pdf, $vrjson, $cv_json]);
         $_SESSION['flash'] = ['ok', '"'.$name.'" পণ্য যোগ করা হয়েছে'];
     } else {
         $_SESSION['flash'] = ['err', 'নাম ও মূল্য দেওয়া বাধ্যতামূলক'];
@@ -176,6 +184,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_book') {
     $bvrraw = trim($_POST['variants']       ?? '');
     $bvrarr = array_values(array_filter(array_map('trim', explode(',', $bvrraw))));
     $bvrjson = !empty($bvrarr) ? json_encode($bvrarr, JSON_UNESCAPED_UNICODE) : '';
+    $bcv_raw  = trim($_POST['color_variants_json'] ?? '');
+    $bcv_arr  = json_decode($bcv_raw, true);
+    $bcv_json = (is_array($bcv_arr) && !empty($bcv_arr)) ? json_encode($bcv_arr, JSON_UNESCAPED_UNICODE) : '';
 
     if (!empty($_FILES['image']['name'])) {
         $fn = uploadBookImage($_FILES['image'], $UPLOAD_DIR);
@@ -187,8 +198,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_book') {
     }
 
     if ($bname && $bprice > 0 && $bid) {
-        $pdo->prepare("UPDATE books SET name=?, author=?, description=?, price=?, image=?, sample_pdf=?, variants=? WHERE id=?")
-            ->execute([$bname, $bauth, $bdesc, $bprice, $img, $pdf, $bvrjson, $bid]);
+        $pdo->prepare("UPDATE books SET name=?, author=?, description=?, price=?, image=?, sample_pdf=?, variants=?, color_variants=? WHERE id=?")
+            ->execute([$bname, $bauth, $bdesc, $bprice, $img, $pdf, $bvrjson, $bcv_json, $bid]);
         $_SESSION['flash'] = ['ok', '"'.$bname.'" আপডেট হয়েছে ✓'];
     } else {
         $_SESSION['flash'] = ['err', 'নাম ও মূল্য দেওয়া বাধ্যতামূলক'];
@@ -217,23 +228,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_settings') {
         if ($fn) { if ($banner_image && file_exists($BANNER_DIR.$banner_image)) @unlink($BANNER_DIR.$banner_image); $banner_image = $fn; }
     }
 
-    $raw_accent = trim($_POST['theme_accent'] ?? '#B5183D');
-    $accent_val = preg_match('/^#[0-9A-Fa-f]{6}$/', $raw_accent) ? $raw_accent : '#B5183D';
-    $raw_bg     = trim($_POST['bg_color'] ?? '');
-    $bg_val     = preg_match('/^#[0-9A-Fa-f]{6}$/', $raw_bg) ? $raw_bg : '';
-    $pixel_val  = preg_replace('/[^0-9]/', '', trim($_POST['pixel_id'] ?? ''));
+    $raw_accent   = trim($_POST['theme_accent'] ?? '#B5183D');
+    $accent_val   = preg_match('/^#[0-9A-Fa-f]{6}$/', $raw_accent) ? $raw_accent : '#B5183D';
+    $raw_bg       = trim($_POST['bg_color'] ?? '');
+    $bg_val       = preg_match('/^#[0-9A-Fa-f]{6}$/', $raw_bg) ? $raw_bg : '';
+    $pixel_val    = preg_replace('/[^0-9]/', '', trim($_POST['pixel_id'] ?? ''));
+    $raw_grad_from = trim($_POST['banner_grad_from'] ?? '#0e0306');
+    $grad_from_val = preg_match('/^#[0-9A-Fa-f]{6}$/', $raw_grad_from) ? $raw_grad_from : '#0e0306';
+    $raw_grad_to   = trim($_POST['banner_grad_to'] ?? '#d4254e');
+    $grad_to_val   = preg_match('/^#[0-9A-Fa-f]{6}$/', $raw_grad_to) ? $raw_grad_to : '#d4254e';
 
     $pdo->prepare("UPDATE settings SET
-        shop_name=?, bkash_number=?, admin_email=?, whatsapp_number=?,
+        shop_name=?, bkash_number=?, bkash_note=?, admin_email=?, whatsapp_number=?,
         dhaka_charge=?, outside_charge=?,
         bkash_mode=?, bkash_qr_image=?,
         bkash_app_key=?, bkash_app_secret=?, bkash_username=?, bkash_password=?,
         banner_enabled=?, banner_title=?, banner_subtitle=?, banner_image=?,
+        banner_grad_from=?, banner_grad_to=?,
         theme_accent=?, bg_color=?, pixel_id=?, country_code=?
         WHERE id=1")
         ->execute([
             sanitize($_POST['shop_name']        ?? ''),
             sanitize($_POST['bkash_number']     ?? ''),
+            sanitize($_POST['bkash_note']       ?? ''),
             sanitize($_POST['admin_email']      ?? ''),
             sanitize($_POST['whatsapp_number']  ?? ''),
             (float)($_POST['dhaka_charge']      ?? 80),
@@ -248,6 +265,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_settings') {
             sanitize($_POST['banner_title']    ?? ''),
             sanitize($_POST['banner_subtitle'] ?? ''),
             $banner_image,
+            $grad_from_val,
+            $grad_to_val,
             $accent_val,
             $bg_val,
             $pixel_val,
@@ -291,9 +310,11 @@ $country_code   = $settings['country_code']  ?? '+880';
 $bkash_mode     = $settings['bkash_mode']    ?? 'manual';
 $bkash_qr_image = $settings['bkash_qr_image'] ?? '';
 $bkash_qr_url   = ($bkash_qr_image && file_exists($QR_DIR.$bkash_qr_image)) ? $QR_URL.$bkash_qr_image : '';
-$banner_enabled = (int)($settings['banner_enabled'] ?? 0);
-$banner_image   = $settings['banner_image'] ?? '';
-$banner_img_url = ($banner_image && file_exists($BANNER_DIR.$banner_image)) ? $BANNER_URL.$banner_image : '';
+$banner_enabled   = (int)($settings['banner_enabled'] ?? 0);
+$banner_image     = $settings['banner_image'] ?? '';
+$banner_img_url   = ($banner_image && file_exists($BANNER_DIR.$banner_image)) ? $BANNER_URL.$banner_image : '';
+$banner_grad_from = $settings['banner_grad_from'] ?? '#0e0306';
+$banner_grad_to   = $settings['banner_grad_to']   ?? '#d4254e';
 
 // Build book data for JS
 $booksJs = array_map(fn($b) => [
@@ -304,8 +325,9 @@ $booksJs = array_map(fn($b) => [
     'price'       => (float)$b['price'],
     'image'       => $b['image'] ?? '',
     'sample_pdf'  => $b['sample_pdf'] ?? '',
-    'variants'    => !empty($b['variants']) ? (json_decode($b['variants'], true) ?: []) : [],
-    'image_url'   => (!empty($b['image']) && file_exists($UPLOAD_DIR.$b['image'])) ? $UPLOAD_URL.$b['image'] : '',
+    'variants'       => !empty($b['variants'])       ? (json_decode($b['variants'],       true) ?: []) : [],
+    'color_variants' => !empty($b['color_variants']) ? (json_decode($b['color_variants'], true) ?: []) : [],
+    'image_url'      => (!empty($b['image']) && file_exists($UPLOAD_DIR.$b['image'])) ? $UPLOAD_URL.$b['image'] : '',
     'has_pdf'     => !empty($b['sample_pdf']) && file_exists($PDF_DIR.$b['sample_pdf']),
 ], $books);
 ?>
@@ -564,6 +586,22 @@ $booksJs = array_map(fn($b) => [
     .toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
     .banner-preview-wrap { position: relative; width: 100%; aspect-ratio: 16/5; background: var(--accent-light); border-radius: 8px; overflow: hidden; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; }
     .banner-preview-wrap img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* Color variant builder */
+    .color-builder-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 10px; background: var(--bg); border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .color-builder-preview {
+      width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+      border: 2.5px solid rgba(255,255,255,.9); box-shadow: 0 0 0 1.5px rgba(0,0,0,.12);
+    }
+    .color-builder-row input[type=color] {
+      width: 36px; height: 28px; padding: 2px; border: 1.5px solid var(--border);
+      border-radius: 5px; cursor: pointer; flex-shrink: 0; background: none;
+    }
+    .color-builder-row input[type=text] { flex: 1; padding: 6px 10px; font-size: .84rem; }
   </style>
   <?= buildThemeCss($theme_accent, $bg_color) ?>
 </head>
@@ -623,6 +661,15 @@ $booksJs = array_map(fn($b) => [
             <label>সাইজ / ভেরিয়েন্ট <span style="font-weight:400;text-transform:none;letter-spacing:0">(ঐচ্ছিক — কমা দিয়ে আলাদা করুন)</span></label>
             <input type="text" name="new_variants" placeholder="যেমন: S, M, L, XL  অথবা  100ml, 200ml, 500ml">
             <span class="hint">খালি রাখলে কোনো সাইজ অপশন থাকবে না</span>
+          </div>
+          <div class="form-group full">
+            <label>Color Variants <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+            <div id="newColorRows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addColorRow('newColorRows','newColorVariantsInput')" style="width:fit-content">
+              <i class="fas fa-plus"></i> Add Color
+            </button>
+            <input type="hidden" name="color_variants_json" id="newColorVariantsInput">
+            <span class="hint">Customers will see colored swatches on the product card to choose from</span>
           </div>
           <div class="form-group">
             <label>পণ্যের ছবি</label>
@@ -720,6 +767,11 @@ $booksJs = array_map(fn($b) => [
           <div class="form-group">
             <label>bKash নম্বর (ম্যানুয়াল)</label>
             <input type="text" name="bkash_number" value="<?= htmlspecialchars($settings['bkash_number'] ?? '') ?>" placeholder="01XXXXXXXXX">
+          </div>
+          <div class="form-group">
+            <label>bKash নোট (গ্রাহককে কী করতে বলবেন)</label>
+            <input type="text" name="bkash_note" value="<?= htmlspecialchars($settings['bkash_note'] ?? '') ?>" placeholder="যেমন: Send Money / Payment / Cashout">
+            <span class="hint">অর্ডার ফর্মে bKash সিলেক্ট করলে এই নোটটি দেখাবে</span>
           </div>
           <div class="form-group">
             <label>ফোন কান্ট্রি কোড</label>
@@ -850,7 +902,39 @@ $booksJs = array_map(fn($b) => [
         </div>
 
         <div class="form-group">
-          <label>ব্যানার ছবি (প্রশস্ত, ১৬:৫ অনুপাত ভালো)</label>
+          <label>ব্যানার গ্রেডিয়েন্ট রং</label>
+          <div style="display:flex;align-items:center;gap:20px;margin-top:6px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="color" name="banner_grad_from" id="gradFromPicker"
+                     value="<?= htmlspecialchars($banner_grad_from) ?>"
+                     style="width:52px;height:44px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;padding:2px;background:var(--card)"
+                     oninput="updateGradPreview()">
+              <div>
+                <div style="font-size:.75rem;color:var(--muted);font-weight:600">শুরুর রং</div>
+                <span id="gradFromHex" style="font-size:.82rem;font-weight:700;font-family:monospace;color:var(--text)"><?= htmlspecialchars($banner_grad_from) ?></span>
+              </div>
+            </div>
+            <div style="font-size:1.1rem;color:var(--muted)">→</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="color" name="banner_grad_to" id="gradToPicker"
+                     value="<?= htmlspecialchars($banner_grad_to) ?>"
+                     style="width:52px;height:44px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;padding:2px;background:var(--card)"
+                     oninput="updateGradPreview()">
+              <div>
+                <div style="font-size:.75rem;color:var(--muted);font-weight:600">শেষের রং</div>
+                <span id="gradToHex" style="font-size:.82rem;font-weight:700;font-family:monospace;color:var(--text)"><?= htmlspecialchars($banner_grad_to) ?></span>
+              </div>
+            </div>
+            <div id="gradPreviewBar" style="
+              flex:1; min-width:120px; height:44px; border-radius:10px;
+              background: linear-gradient(135deg, <?= htmlspecialchars($banner_grad_from) ?> 0%, <?= htmlspecialchars($banner_grad_to) ?> 100%);
+              border:1.5px solid var(--border);
+            "></div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>ব্যানার ছবি (ডিস্কের ভেতরে দেখাবে)</label>
           <?php if ($banner_img_url): ?>
             <div class="banner-preview-wrap" style="margin-bottom:10px">
               <img src="<?= htmlspecialchars($banner_img_url) ?>" alt="Banner">
@@ -1042,6 +1126,15 @@ $booksJs = array_map(fn($b) => [
             <input type="text" name="variants" id="editVariants" placeholder="S, M, L, XL  অথবা  100ml, 200ml">
             <span class="hint">কমা দিয়ে আলাদা করুন। খালি রাখলে কোনো সাইজ অপশন থাকবে না।</span>
           </div>
+          <div class="form-group full">
+            <label>Color Variants</label>
+            <div id="editColorRows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addColorRow('editColorRows','editColorVariantsInput')" style="width:fit-content">
+              <i class="fas fa-plus"></i> Add Color
+            </button>
+            <input type="hidden" name="color_variants_json" id="editColorVariantsInput">
+            <span class="hint">Leave empty for no color options</span>
+          </div>
         </div>
 
         <!-- Image section -->
@@ -1121,6 +1214,10 @@ function openEdit(id) {
   document.getElementById('editDesc').value     = book.description;
   document.getElementById('editPrice').value    = book.price;
   document.getElementById('editVariants').value = (book.variants || []).join(', ');
+  const editColorRows = document.getElementById('editColorRows');
+  editColorRows.innerHTML = '';
+  document.getElementById('editColorVariantsInput').value = '';
+  (book.color_variants || []).forEach(c => addColorRow('editColorRows', 'editColorVariantsInput', c.name, c.code));
   document.getElementById('editImgCurrent').value = book.image;
   document.getElementById('editPdfCurrent').value = book.sample_pdf;
 
@@ -1260,6 +1357,15 @@ function resetBg() {
   document.documentElement.style.setProperty('--bg', _hex(..._mix(r,g,b,255,255,255,.04)));
 }
 
+function updateGradPreview() {
+  const from = document.getElementById('gradFromPicker').value;
+  const to   = document.getElementById('gradToPicker').value;
+  document.getElementById('gradFromHex').textContent = from;
+  document.getElementById('gradToHex').textContent   = to;
+  document.getElementById('gradPreviewBar').style.background =
+    `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
+}
+
 // ─── bKash mode toggle ──────────────────────────────────
 function setBkashMode(mode) {
   document.getElementById('bkashModeInput').value = mode;
@@ -1289,6 +1395,39 @@ function previewBanner(input) {
   img.src = URL.createObjectURL(input.files[0]);
   wrap.style.display = 'block';
   input.closest('.img-drop').style.borderColor = 'var(--accent)';
+}
+
+// ─── Color Variant Builder ─────────────────────────────────
+function addColorRow(containerId, inputId, name = '', code = '#e11d48') {
+  const container = document.getElementById(containerId);
+  const row = document.createElement('div');
+  row.className = 'color-builder-row';
+  const safeCode = String(code).replace(/[^#0-9A-Fa-f]/g, '') || '#e11d48';
+  const safeName = String(name).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  row.innerHTML = `
+    <div class="color-builder-preview" style="background:${safeCode}"></div>
+    <input type="color" value="${safeCode}"
+           oninput="this.previousElementSibling.style.background=this.value;syncColorVariants('${containerId}','${inputId}')">
+    <input type="text" placeholder="Color name (e.g. Red)" value="${safeName}"
+           oninput="syncColorVariants('${containerId}','${inputId}')">
+    <button type="button" class="btn btn-danger btn-xs"
+            onclick="this.closest('.color-builder-row').remove();syncColorVariants('${containerId}','${inputId}')">
+      <i class="fas fa-times"></i>
+    </button>`;
+  container.appendChild(row);
+  syncColorVariants(containerId, inputId);
+}
+
+function syncColorVariants(containerId, inputId) {
+  const rows = document.querySelectorAll(`#${containerId} .color-builder-row`);
+  const arr = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const code = inputs[0].value;
+    const name = inputs[1].value.trim();
+    if (name) arr.push({ name, code });
+  });
+  document.getElementById(inputId).value = JSON.stringify(arr);
 }
 </script>
 </body>

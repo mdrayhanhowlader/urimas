@@ -5,6 +5,9 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 }
 require_once '../config.php';
 
+// Ensure 'cancelled' is in the orders.status ENUM
+try { $pdo->exec("ALTER TABLE orders MODIFY COLUMN status ENUM('pending','confirmed','delivered','cancelled') NOT NULL DEFAULT 'pending'"); } catch (Exception $e) {}
+
 $settings        = $pdo->query("SELECT * FROM settings LIMIT 1")->fetch();
 $whatsapp_number = preg_replace('/\D/', '', $settings['whatsapp_number'] ?? '');
 $shop_name       = htmlspecialchars($settings['shop_name'] ?? 'Urimas Books');
@@ -15,8 +18,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_id'], $_POST['s
     $order_id = (int)$_POST['order_id'];
     $status   = sanitize($_POST['status']);
     if (in_array($status, ['pending','confirmed','delivered','cancelled'])) {
-        $pdo->prepare("UPDATE orders SET status=? WHERE id=?")->execute([$status, $order_id]);
-        $flash = ['ok', 'Order status updated'];
+        try {
+            $pdo->prepare("UPDATE orders SET status=? WHERE id=?")->execute([$status, $order_id]);
+            $flash = ['ok', 'Order status updated'];
+        } catch (Exception $e) {
+            $flash = ['err', 'Failed to update status'];
+        }
     }
 }
 

@@ -1,3 +1,4 @@
+<?php $country_code = $country_code ?? '+880'; ?>
 <div class="order-section" id="orderSection">
   <div class="order-card">
     <div class="order-header">
@@ -59,25 +60,18 @@
           <div class="form-group">
             <label>Payment Method *</label>
             <div class="payment-toggle">
-              <button type="button" class="pay-btn" id="btnCod" onclick="setPayment('cod')">
+              <button type="button" class="pay-btn active" id="btnCod" onclick="setPayment('cod')">
                 <i class="fas fa-money-bill-wave"></i> Cash on Delivery
               </button>
-              <button type="button" class="pay-btn active" id="btnBkash" onclick="setPayment('bkash')">
+              <button type="button" class="pay-btn" id="btnBkash" onclick="setPayment('bkash')">
                 <i class="fas fa-mobile-alt"></i> bKash
               </button>
             </div>
           </div>
         </div>
 
-        <div id="bkashManualBox" style="margin-top:12px">
+        <div id="bkashManualBox" style="display:none;margin-top:12px">
           <div id="bkashQrBlock"></div>
-          <div class="bkash-info" id="bkashInfoSimple" style="margin-top:8px">
-            <div>
-              <div class="bkash-label">Send to bKash number</div>
-              <div class="bkash-number" id="bkashNumber">Loading...</div>
-            </div>
-            <button type="button" class="copy-btn" onclick="copyBkash()">Copy</button>
-          </div>
         </div>
 
         <div id="bkashApiBox" style="display:none;margin-top:12px">
@@ -90,7 +84,7 @@
           </p>
         </div>
 
-        <div class="transaction-field show form-group" id="txnField">
+        <div class="transaction-field form-group" id="txnField">
           <label for="ftxn">Transaction ID *</label>
           <input type="text" id="ftxn" placeholder="bKash Transaction ID">
         </div>
