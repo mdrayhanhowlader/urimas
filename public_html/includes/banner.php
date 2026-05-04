@@ -1,6 +1,7 @@
 <?php
 // Suppress Intelephense P1008 — variables set by index.php before include
 $shop_name        = $shop_name        ?? '';
+$logo_img_url     = $logo_img_url     ?? '';
 $banner_enabled   = $banner_enabled   ?? 0;
 $banner_title     = $banner_title     ?? '';
 $banner_subtitle  = $banner_subtitle  ?? '';
@@ -15,7 +16,13 @@ $_grad_style      = 'background:linear-gradient(135deg,'
 
 <header class="site-header">
   <div class="site-nav-inner">
-    <a href="index.php" class="site-logo"><?= htmlspecialchars($shop_name) ?></a>
+    <a href="index.php" class="site-logo">
+      <?php if ($logo_img_url): ?>
+        <img src="<?= $logo_img_url ?>" alt="<?= htmlspecialchars($shop_name) ?>" class="site-logo-img">
+      <?php else: ?>
+        <?= htmlspecialchars($shop_name) ?>
+      <?php endif; ?>
+    </a>
   </div>
 </header>
 

@@ -13,12 +13,15 @@ $QR_DIR      = __DIR__ . '/../assets/images/qr/';
 $QR_URL      = '../assets/images/qr/';
 $BANNER_DIR  = __DIR__ . '/../assets/images/banner/';
 $BANNER_URL  = '../assets/images/banner/';
+$LOGO_DIR    = __DIR__ . '/../assets/images/logo/';
+$LOGO_URL    = '../assets/images/logo/';
 
 // Auto-migrations
 foreach ([
     "ALTER TABLE books ADD COLUMN author VARCHAR(255) NOT NULL DEFAULT '' AFTER name",
     "ALTER TABLE settings ADD COLUMN bkash_number VARCHAR(20) NOT NULL DEFAULT ''",
     "ALTER TABLE settings ADD COLUMN bkash_note VARCHAR(255) NOT NULL DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN logo_image VARCHAR(255) NOT NULL DEFAULT ''",
     "ALTER TABLE settings ADD COLUMN bkash_mode VARCHAR(10) NOT NULL DEFAULT 'manual'",
     "ALTER TABLE settings ADD COLUMN bkash_qr_image VARCHAR(255) NOT NULL DEFAULT ''",
     "ALTER TABLE settings ADD COLUMN bkash_app_key VARCHAR(255) NOT NULL DEFAULT ''",
@@ -220,6 +223,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_settings') {
         if ($fn) { if ($qr_image && file_exists($QR_DIR.$qr_image)) @unlink($QR_DIR.$qr_image); $qr_image = $fn; }
     }
 
+    // Logo upload
+    $logo_image = $cur['logo_image'] ?? '';
+    if (!empty($_FILES['logo_image']['name'])) {
+        if (!is_dir($LOGO_DIR)) mkdir($LOGO_DIR, 0777, true);
+        $fn = uploadBookImage($_FILES['logo_image'], $LOGO_DIR);
+        if ($fn) { if ($logo_image && file_exists($LOGO_DIR.$logo_image)) @unlink($LOGO_DIR.$logo_image); $logo_image = $fn; }
+    }
+
     // Banner image upload
     $banner_image = $cur['banner_image'] ?? '';
     if (!empty($_FILES['banner_image']['name'])) {
@@ -245,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_settings') {
         bkash_app_key=?, bkash_app_secret=?, bkash_username=?, bkash_password=?,
         banner_enabled=?, banner_title=?, banner_subtitle=?, banner_image=?,
         banner_grad_from=?, banner_grad_to=?,
-        theme_accent=?, bg_color=?, pixel_id=?, country_code=?
+        theme_accent=?, bg_color=?, pixel_id=?, country_code=?, logo_image=?
         WHERE id=1")
         ->execute([
             sanitize($_POST['shop_name']        ?? ''),
@@ -271,6 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_settings') {
             $bg_val,
             $pixel_val,
             preg_replace('/[^+0-9]/', '', trim($_POST['country_code'] ?? '+880')),
+            $logo_image,
         ]);
     $_SESSION['flash'] = ['ok', 'সেটিংস সেভ হয়েছে ✓'];
     header('Location: settings.php#shop'); exit;
@@ -315,6 +327,8 @@ $banner_image     = $settings['banner_image'] ?? '';
 $banner_img_url   = ($banner_image && file_exists($BANNER_DIR.$banner_image)) ? $BANNER_URL.$banner_image : '';
 $banner_grad_from = $settings['banner_grad_from'] ?? '#0e0306';
 $banner_grad_to   = $settings['banner_grad_to']   ?? '#d4254e';
+$logo_image       = $settings['logo_image'] ?? '';
+$logo_img_url     = ($logo_image && file_exists($LOGO_DIR.$logo_image)) ? $LOGO_URL.$logo_image : '';
 
 // Build book data for JS
 $booksJs = array_map(fn($b) => [
@@ -755,6 +769,28 @@ $booksJs = array_map(fn($b) => [
   <div class="tab-panel" id="tab-shop">
     <form method="POST" enctype="multipart/form-data">
       <input type="hidden" name="action" value="update_settings">
+
+      <!-- Logo upload -->
+      <div class="card">
+        <div class="card-title"><i class="fas fa-image"></i> শপের লোগো</div>
+        <?php if ($logo_img_url): ?>
+          <div style="margin-bottom:14px;display:flex;align-items:center;gap:14px;background:var(--bg);padding:12px 14px;border-radius:8px;border:1px solid var(--border)">
+            <img src="<?= htmlspecialchars($logo_img_url) ?>" alt="Logo" style="max-height:56px;max-width:180px;object-fit:contain;border-radius:6px">
+            <span style="font-size:.8rem;color:var(--muted)">বর্তমান লোগো — নতুন আপলোড করলে পুরোনোটি সরে যাবে</span>
+          </div>
+        <?php endif; ?>
+        <div class="img-drop">
+          <input type="file" class="file-overlay" name="logo_image" accept="image/*"
+                 onchange="previewLogo(this)">
+          <div class="drop-content">
+            <i class="fas fa-store"></i>
+            লোগো ছবি বেছে নিন
+            <small>PNG/WebP (transparent background ভালো) · max 5MB</small>
+          </div>
+        </div>
+        <img id="logoPreview" style="display:none;max-height:60px;max-width:200px;object-fit:contain;margin-top:10px;border-radius:6px">
+        <span class="hint" style="margin-top:6px;display:block">লোগো না দিলে শপের নাম text হিসেবে দেখাবে</span>
+      </div>
 
       <!-- Shop info -->
       <div class="card">
@@ -1385,6 +1421,15 @@ function previewQr(input) {
   img.src = URL.createObjectURL(input.files[0]);
   img.style.display = 'block';
   input.closest('.img-drop').style.borderColor = '#e2136e';
+}
+
+// Logo preview
+function previewLogo(input) {
+  if (!input.files[0]) return;
+  const img = document.getElementById('logoPreview');
+  img.src = URL.createObjectURL(input.files[0]);
+  img.style.display = 'block';
+  input.closest('.img-drop').style.borderColor = 'var(--accent)';
 }
 
 // Banner preview

@@ -395,7 +395,7 @@ textarea { resize: vertical; min-height: 80px; }
 .site-nav-inner {
   max-width: 1100px; margin: 0 auto;
   display: flex; align-items: center; justify-content: center;
-  height: 62px; padding: 0 24px;
+  height: 74px; padding: 0 24px;
 }
 .site-logo {
   font-size: 1.55rem; font-weight: 800;
@@ -404,10 +404,15 @@ textarea { resize: vertical; min-height: 80px; }
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   text-decoration: none;
 }
+.site-logo-img {
+  max-height: 58px; max-width: 220px;
+  object-fit: contain; display: block;
+  -webkit-text-fill-color: initial;
+}
 
 /* scroll offset for sticky nav */
-#productsSection { scroll-margin-top: 72px; }
-#orderSection    { scroll-margin-top: 72px; }
+#productsSection { scroll-margin-top: 84px; }
+#orderSection    { scroll-margin-top: 84px; }
 
 /* ─── BANNER: HERO (gradient split) ─── */
 .banner-hero {

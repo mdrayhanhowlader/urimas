@@ -62,7 +62,9 @@ try {
         theme_accent     VARCHAR(20)   NOT NULL DEFAULT '#B5183D',
         bg_color         VARCHAR(20)   NOT NULL DEFAULT '',
         pixel_id         VARCHAR(50)   NOT NULL DEFAULT '',
-        country_code     VARCHAR(15)   NOT NULL DEFAULT '+880'
+        country_code     VARCHAR(15)   NOT NULL DEFAULT '+880',
+        bkash_note       VARCHAR(255)  NOT NULL DEFAULT '',
+        logo_image       VARCHAR(255)  NOT NULL DEFAULT ''
     ) DEFAULT CHARSET=utf8mb4");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS admin (
@@ -91,6 +93,11 @@ try {
         "ALTER TABLE settings ADD COLUMN whatsapp_number VARCHAR(20)  NOT NULL DEFAULT ''",
         "ALTER TABLE settings ADD COLUMN bkash_mode     VARCHAR(10)   NOT NULL DEFAULT 'manual'",
         "ALTER TABLE settings ADD COLUMN bkash_qr_image VARCHAR(255)  NOT NULL DEFAULT ''",
+        "ALTER TABLE settings ADD COLUMN bkash_app_key  VARCHAR(255)  NOT NULL DEFAULT ''",
+        "ALTER TABLE settings ADD COLUMN bkash_app_secret VARCHAR(255) NOT NULL DEFAULT ''",
+        "ALTER TABLE settings ADD COLUMN bkash_username VARCHAR(255)  NOT NULL DEFAULT ''",
+        "ALTER TABLE settings ADD COLUMN bkash_password VARCHAR(255)  NOT NULL DEFAULT ''",
+        "ALTER TABLE settings ADD COLUMN bkash_note     VARCHAR(255)  NOT NULL DEFAULT ''",
         "ALTER TABLE settings ADD COLUMN banner_enabled  TINYINT(1)   NOT NULL DEFAULT 0",
         "ALTER TABLE settings ADD COLUMN banner_title    VARCHAR(255)  NOT NULL DEFAULT ''",
         "ALTER TABLE settings ADD COLUMN banner_subtitle VARCHAR(500)  NOT NULL DEFAULT ''",
@@ -101,6 +108,7 @@ try {
         "ALTER TABLE settings ADD COLUMN bg_color        VARCHAR(20)   NOT NULL DEFAULT ''",
         "ALTER TABLE settings ADD COLUMN pixel_id        VARCHAR(50)   NOT NULL DEFAULT ''",
         "ALTER TABLE settings ADD COLUMN country_code    VARCHAR(15)   NOT NULL DEFAULT '+880'",
+        "ALTER TABLE settings ADD COLUMN logo_image      VARCHAR(255)  NOT NULL DEFAULT ''",
         "ALTER TABLE orders   MODIFY COLUMN status ENUM('pending','confirmed','delivered','cancelled') NOT NULL DEFAULT 'pending'",
     ] as $sql) {
         try { $pdo->exec($sql); } catch (Exception $e) {}
