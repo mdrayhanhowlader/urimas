@@ -31,8 +31,9 @@ $orders = $pdo->query("SELECT * FROM orders ORDER BY created_at DESC")->fetchAll
 $stats  = $pdo->query("SELECT COUNT(*) total, SUM(status='pending') pending, SUM(status='confirmed') confirmed, SUM(status='delivered') delivered, SUM(status='cancelled') cancelled, SUM(CASE WHEN status!='cancelled' THEN total ELSE 0 END) revenue FROM orders")->fetch();
 
 function parseBooks($row) {
-    if (!empty($row['books_json'])) {
-        $d = json_decode($row['books_json'], true);
+    $raw = $row['books_data'] ?? $row['books_json'] ?? '';
+    if (!empty($raw)) {
+        $d = json_decode($raw, true);
         if (is_array($d) && count($d)) return $d;
     }
     return [];

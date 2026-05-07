@@ -3,7 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><?= $shop_name ?></title>
+  <title><?= $shop_name ?? '' ?></title>
+  <?php $logo_img_url = $logo_img_url ?? ''; $pixel_id = $pixel_id ?? ''; $css_v = $css_v ?? time(); $theme_accent = $theme_accent ?? '#B5183D'; $bg_color = $bg_color ?? ''; ?>
+  <?php if ($logo_img_url): ?>
+  <link rel="icon" type="image/png" href="<?= htmlspecialchars($logo_img_url) ?>">
+  <?php else: ?>
+  <link rel="icon" type="image/png" href="assets/images/favicon.png">
+  <?php endif; ?>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
